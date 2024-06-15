@@ -1,1 +1,1 @@
-# micrograd
+# Makemore

@@ -20,16 +20,28 @@ class NamesModule(L.LightningModule):
             nn.Linear(200, num_chars),
         )
 
-    def training_step(self, batch, batch_idx):
+    def forward(self, batch, batch_idx):
         x, y = batch
         logits = self.model(x)
-
         loss = F.cross_entropy(logits, y)
+
+        return loss
+
+    def training_step(self, batch, batch_idx):
+        loss = self.forward(batch, batch_idx)
 
         self.log("train_loss", loss)
 
         return loss
 
+    def validation_step(self, batch, batch_idx):
+        loss = self.forward(batch, batch_idx)
+
+        self.log("val_loss", loss)
+
+        return loss
+
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
+        optimizer = torch.optim.SGD(self.parameters(), lr=1e-3)
+
         return optimizer

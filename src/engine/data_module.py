@@ -3,8 +3,8 @@ from torch.utils.data import Dataset, DataLoader, random_split
 import lightning as L
 
 
-class NamesDataset(Dataset):
-    def __init__(self, path, block_size):
+class ShakespearDataset(Dataset):
+    def __init__(self, path, block_size=8):
         self.path = path
         self.block_size = block_size
         self.tokens_file = path.parent / "tokens.pt"
@@ -14,59 +14,56 @@ class NamesDataset(Dataset):
         self.load_tokens()
 
     def setup(self):
-        self.names = self.path.read_text().splitlines()
-        self.chars = sorted(set("".join(self.names)))
+        self.text = self.path.read_text()
+        chars = "".join(sorted(set(self.text)))
 
-        self.start_char = "<S>"
-        self.end_char = "<E>"
-        self.ctoi = {self.start_char: 0}
-        self.ctoi.update({c: i for i, c in enumerate(self.chars, 1)})
-        self.ctoi[self.end_char] = len(self.ctoi)
-
+        self.num_chars = len(chars)
+        self.ctoi = {c: i for i, c in enumerate(chars)}
         self.itoc = {i: c for c, i in self.ctoi.items()}
-
-        self.num_chars = len(self.itoc)
+        self.encode = lambda s: [self.ctoi[c] for c in s]
+        self.decode = lambda l: "".join([self.itoc[i] for i in l])
 
     def save_tokens(self):
         if not self.tokens_file.exists():
-            x = []
-            y = []
-            for name in self.names:
-                context = [0] * self.block_size
-                for ch in list(name) + [self.end_char]:
-                    ix = self.ctoi[ch]
-                    x.append(context)
-                    y.append(ix)
-                    context = context[1:] + [ix]  # crop and append
+            data = torch.tensor(self.encode(self.text))
 
-            torch.save([torch.tensor(x), torch.tensor(y)],
-                       self.tokens_file)
+            torch.save(data, self.tokens_file)
 
     def load_tokens(self):
-        self.x, self.y = torch.load(self.tokens_file)
+        self.data = torch.load(self.tokens_file)
 
-    def __len__(self): return len(self.names)
+    def __len__(self):
+        return len(self.data) - (self.block_size + 1)
 
-    def __getitem__(self, index):
-        return self.x[index], self.y[index]
+    def __getitem__(self, idx):
+        if idx < 0:
+            idx = len(self) + (idx + 1)
 
-    def __repr__(self):
-        return f"Dataset({self.num_chars=})"
+        if idx <= len(self):
+            x = self.data[idx:idx + self.block_size]
+            y = self.data[idx + 1:idx + self.block_size + 1]
+
+            return x, y
+        else:
+            raise IndexError(
+                f"Index {idx} out of range for data length {len(self.data)} with block size {self.block_size}")
+
+    def __repr__(self): return f"Dataset({self.block_size=})"
 
 
-class NamesDataModule(L.LightningDataModule):
-    def __init__(self, path, block_size, batch_size):
+class ShakespearDataModule(L.LightningDataModule):
+    def __init__(self, path, block_size=8, batch_size=64):
         super().__init__()
         self.path = path
         self.block_size = block_size
         self.batch_size = batch_size
 
     def prepare_data(self):
-        NamesDataset(self.path, self.block_size)
+        ShakespearDataset(self.path, self.block_size)
 
     def setup(self, stage):
         if stage == "fit":
-            self.dataset = NamesDataset(self.path, self.block_size)
+            self.dataset = ShakespearDataset(self.path, self.block_size)
             train_size = int(len(self.dataset) * 0.7)
             val_size = len(self.dataset) - train_size
 

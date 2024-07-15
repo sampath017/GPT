@@ -3,8 +3,7 @@ from engine.generate import generate
 
 
 def main():
-    train()
-    generate()
+    generate(train())
 
 
 if __name__ == "__main__":

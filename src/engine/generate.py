@@ -1,35 +1,29 @@
 import torch
-from module import NamesModule
+from .module import ShakespeareModule
 import torch.nn.functional as F
 
 
-from settings import num_chars, block_size, ctoi, itoc, start_char, end_char
+from .settings import num_chars, block_size, decode
 
 
-def generate_names(model_path, num_names=5):
-    for _ in range(num_names):
-        model = NamesModule.load_from_checkpoint(
-            model_path, num_chars=num_chars, block_size=block_size)
-        model.eval()
+def generate_sentense(model_path, max_tokens=1000):
+    model = ShakespeareModule.load_from_checkpoint(
+        model_path, num_chars=num_chars, block_size=block_size)  # should be outside loop
+    model.eval()
+    x = torch.zeros(1, dtype=torch.long)
+    for _ in range(max_tokens):
+        x_in = x[-1]
+        logits = model.model(x_in)
+        probs = F.softmax(logits, dim=-1).flatten()
+        x_next = torch.multinomial(probs, num_samples=1, replacement=True)
+        x = torch.cat([x, x_next])
 
-        out = []
-        context = [ctoi[start_char]] * block_size
-        while True:
-            embs = model.embedding_table(torch.tensor(context).reshape(1, -1))
-            embs = embs.reshape(embs.shape[0], -1)
-            logits = model.model(embs)
-            probs = F.softmax(logits, dim=-1).flatten()
-            ix = torch.multinomial(probs, num_samples=1,
-                                   replacement=True).item()
-            if ix == ctoi[end_char]:
-                break
+    sentense = decode(x.tolist())
 
-            out.append(ix)
-
-        name = ''.join(itoc[i] for i in out)
-        print(name)
+    print(sentense)
 
 
-def generate():
-    generate_names(
-        model_path="data\\logs\\Makemore\\u1365m8v\\checkpoints\\epoch=7019-step=63180.ckpt", num_names=1)
+def generate(experiment_name):
+    if experiment_name:
+        generate_sentense(
+            model_path=f"data/logs/GPT/{experiment_name}/checkpoints/best.ckpt", max_tokens=100)

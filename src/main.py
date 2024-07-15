@@ -3,7 +3,9 @@ from engine.generate import generate
 
 
 def main():
-    generate(train())
+    experiment_name = "2xgrvgac"
+    # experiment_name = train()
+    generate(experiment_name)
 
 
 if __name__ == "__main__":

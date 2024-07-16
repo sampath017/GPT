@@ -10,8 +10,8 @@ import wandb
 from .settings import (
     logs_path,
     data_path,
-    num_chars,
-    block_size,
+    num_words,
+    context_size,
     batch_size,
     project_name,
     debug,
@@ -21,8 +21,8 @@ from .settings import (
 )
 
 dm = ShakespearDataModule(
-    data_path, block_size=block_size, batch_size=batch_size)
-model = ShakespeareModule(num_chars, block_size=block_size)
+    data_path, context_size=context_size, batch_size=batch_size)
+model = ShakespeareModule(num_words, context_size=context_size)
 
 callbacks = [ModelCheckpoint(
     filename="best", monitor="val_loss",

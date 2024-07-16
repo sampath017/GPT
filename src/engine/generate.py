@@ -2,17 +2,16 @@ import torch
 from .module import ShakespeareModule
 import torch.nn.functional as F
 
-
-from .settings import num_chars, block_size, decode
+from .settings import num_words, context_size, decode
 
 
 def generate_sentense(model_path, max_tokens=1000):
     model = ShakespeareModule.load_from_checkpoint(
-        model_path, num_chars=num_chars, block_size=block_size)  # should be outside loop
+        model_path, num_words=num_words, context_size=context_size)  # should be outside loop
     model.eval()
-    x = torch.zeros(8, dtype=torch.long)
+    x = torch.zeros(context_size, dtype=torch.long)
     for _ in range(max_tokens):
-        x_in = x[-8:]
+        x_in = x[-context_size:]
         logits = model.model(x_in)
         last_token = logits[-1]
         probs = F.softmax(last_token, dim=-1).flatten()

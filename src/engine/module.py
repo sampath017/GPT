@@ -6,10 +6,10 @@ import lightning as L
 
 
 class Head(nn.Module):
-    def __init__(self, block_size):
+    def __init__(self, context_size):
         super().__init__()
-        self.block_size = block_size
-        tril = torch.tril(torch.ones(self.block_size, self.block_size))
+        self.context_size = context_size
+        tril = torch.tril(torch.ones(self.context_size, self.context_size))
         weights = torch.zeros_like(tril)
         weights = weights.masked_fill(tril == 0, -torch.inf)
         self.register_buffer('weights', F.softmax(weights, dim=-1))
@@ -21,12 +21,12 @@ class Head(nn.Module):
 
 
 class ShakespeareModule(L.LightningModule):
-    def __init__(self, num_chars, block_size):
+    def __init__(self, num_chars, context_size):
         super().__init__()
         self.num_chars = num_chars
         self.model = nn.Sequential(
             nn.Embedding(num_chars, num_chars),
-            Head(block_size)
+            Head(context_size)
         )
 
     def forward(self, batch, batch_idx):

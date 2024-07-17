@@ -28,7 +28,7 @@ callbacks = [ModelCheckpoint(
     filename="best", monitor="val_loss",
 )]
 
-logger = WandbLogger(project=project_name, save_dir=logs_path)
+logger = WandbLogger(project=project_name, save_dir=logs_path, log_model="all")
 trainer = L.Trainer(
     max_epochs=epochs,
     limit_train_batches=limit_train_batches,

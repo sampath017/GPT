@@ -21,11 +21,11 @@ class Head(nn.Module):
 
 
 class ShakespeareModule(L.LightningModule):
-    def __init__(self, num_chars, context_size):
+    def __init__(self, num_words, context_size):
         super().__init__()
-        self.num_chars = num_chars
+        self.num_words = num_words
         self.model = nn.Sequential(
-            nn.Embedding(num_chars, num_chars),
+            nn.Embedding(num_words, num_words),
             Head(context_size)
         )
 
@@ -33,7 +33,7 @@ class ShakespeareModule(L.LightningModule):
         x, y = batch
         logits = self.model(x)
         loss = F.cross_entropy(
-            logits.reshape(-1, self.num_chars), y.reshape(-1))
+            logits.reshape(-1, self.num_words), y.reshape(-1))
 
         return loss
 

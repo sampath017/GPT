@@ -21,11 +21,11 @@ class Head(nn.Module):
 
 
 class ShakespeareModule(L.LightningModule):
-    def __init__(self, num_words, context_size):
+    def __init__(self, num_chars, context_size):
         super().__init__()
-        self.num_words = num_words
+        self.num_chars = num_chars
         self.model = nn.Sequential(
-            nn.Embedding(num_words, num_words),
+            nn.Embedding(num_chars, num_chars),
             Head(context_size)
         )
 

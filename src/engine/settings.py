@@ -22,7 +22,7 @@ dm = ShakespearDataModule(
     data_path, context_size=context_size, batch_size=batch_size)
 dm.setup(stage="fit")
 
-num_words = dm.dataset.num_words
+num_chars = dm.dataset.num_chars
 decode = dm.dataset.decode
-word_to_i = dm.dataset.word_to_i
-i_to_word = dm.dataset.i_to_word
+itoc = dm.dataset.itoc
+ctoi = dm.dataset.ctoi

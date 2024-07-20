@@ -15,13 +15,13 @@ class ShakespearDataset(Dataset):
 
     def setup(self):
         self.text = self.path.read_text()
-        words = sorted(set(self.text.split()))
+        chars = sorted(set(self.text.split()))
 
-        self.num_words = len(words)
-        self.word_to_i = {word: i for i, word in enumerate(words)}
-        self.i_to_word = {word: c for c, word in self.word_to_i.items()}
-        self.encode = lambda s: [self.word_to_i[c] for c in s]
-        self.decode = lambda l: "".join([self.i_to_word[i] for i in l])
+        self.num_chars = len(chars)
+        self.ctoi = {c: i for i, c in enumerate(chars)}
+        self.itoc = {i: c for c, i in self.ctoi.items()}
+        self.encode = lambda s: [self.ctoi[c] for c in s]
+        self.decode = lambda l: "".join([self.itoc[i] for i in l])
 
     def save_tokens(self):
         if not self.tokens_file.exists():

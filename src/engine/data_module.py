@@ -4,9 +4,9 @@ import lightning as L
 
 
 class ShakespearDataset(Dataset):
-    def __init__(self, path, block_size=8):
+    def __init__(self, path, context_size=8):
         self.path = path
-        self.block_size = block_size
+        self.context_size = context_size
         self.tokens_file = path.parent / "tokens.pt"
 
         self.setup()
@@ -33,37 +33,37 @@ class ShakespearDataset(Dataset):
         self.data = torch.load(self.tokens_file)
 
     def __len__(self):
-        return len(self.data) - (self.block_size + 1)
+        return len(self.data) - (self.context_size + 1)
 
     def __getitem__(self, idx):
         if idx < 0:
             idx = len(self) + (idx + 1)
 
         if idx <= len(self):
-            x = self.data[idx:idx + self.block_size]
-            y = self.data[idx + 1:idx + self.block_size + 1]
+            x = self.data[idx:idx + self.context_size]
+            y = self.data[idx + 1:idx + self.context_size + 1]
 
             return x, y
         else:
             raise IndexError(
-                f"Index {idx} out of range for data length {len(self.data)} with block size {self.block_size}")
+                f"Index {idx} out of range for data length {len(self.data)} with block size {self.context_size}")
 
-    def __repr__(self): return f"Dataset({self.block_size=})"
+    def __repr__(self): return f"Dataset({self.context_size=})"
 
 
 class ShakespearDataModule(L.LightningDataModule):
-    def __init__(self, path, block_size=8, batch_size=64):
+    def __init__(self, path, context_size=8, batch_size=64):
         super().__init__()
         self.path = path
-        self.block_size = block_size
+        self.context_size = context_size
         self.batch_size = batch_size
 
     def prepare_data(self):
-        ShakespearDataset(self.path, self.block_size)
+        ShakespearDataset(self.path, self.context_size)
 
     def setup(self, stage):
         if stage == "fit":
-            self.dataset = ShakespearDataset(self.path, self.block_size)
+            self.dataset = ShakespearDataset(self.path, self.context_size)
             train_size = int(len(self.dataset) * 0.7)
             val_size = len(self.dataset) - train_size
 

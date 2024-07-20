@@ -3,12 +3,12 @@ from .module import ShakespeareModule
 import torch.nn.functional as F
 
 
-from .settings import num_chars, block_size, decode
+from .settings import num_chars, context_size, decode
 
 
 def generate_sentense(model_path, max_tokens=1000):
     model = ShakespeareModule.load_from_checkpoint(
-        model_path, num_chars=num_chars, block_size=block_size)  # should be outside loop
+        model_path, num_chars=num_chars, context_size=context_size)  # should be outside loop
     model.eval()
     x = torch.zeros(8, dtype=torch.long)
     for _ in range(max_tokens):

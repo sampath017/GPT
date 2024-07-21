@@ -26,7 +26,5 @@ def generate_sentense(model_path, max_tokens=1000):
 
 def generate(experiment_name):
     if experiment_name:
-        # generate_sentense(
-        #     model_path=f"data/logs/GPT/{experiment_name}/checkpoints/best.ckpt", max_tokens=100)
-
-        generate_sentense(model_path=f"models/word_embds.ckpt", max_tokens=100)
+        generate_sentense(
+            model_path=f"data/logs/GPT/{experiment_name}/checkpoints/best.ckpt", max_tokens=100)

@@ -26,14 +26,14 @@ class ShakespeareModule(L.LightningModule):
         self.num_chars = num_chars
         self.model = nn.Sequential(
             nn.Embedding(num_chars, num_chars),
-            Head(context_size)
+            # Head(context_size)
         )
 
     def forward(self, batch, batch_idx):
         x, y = batch
         logits = self.model(x)
         loss = F.cross_entropy(
-            logits.reshape(-1, self.num_words), y.reshape(-1))
+            logits.reshape(-1, self.num_chars), y.reshape(-1))
 
         return loss
 

@@ -15,11 +15,11 @@ class ShakespearDataset(Dataset):
 
     def setup(self):
         self.text = self.path.read_text()
-        chars = sorted(set(self.text.split()))
+        chars = sorted(set(self.text))
 
         self.num_chars = len(chars)
         self.ctoi = {c: i for i, c in enumerate(chars)}
-        self.itoc = {i: c for c, i in self.ctoi.items()}
+        self.itoc = {i: c for i, c in enumerate(chars)}
         self.encode = lambda s: [self.ctoi[c] for c in s]
         self.decode = lambda l: "".join([self.itoc[i] for i in l])
 

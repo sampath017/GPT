@@ -3,8 +3,8 @@ from engine.generate import generate
 
 
 def main():
-    experiment_name = "a5rz8j8u"
-    experiment_name = train()
+    experiment_name = "fe9z6ugm"
+    # experiment_name = train()
     generate(experiment_name)
 
 

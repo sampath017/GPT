@@ -4,9 +4,9 @@ from .data_module import ShakespearDataModule
 
 
 project_name = "GPT"
-context_size = 8
+context_size = 20
 batch_size = 64
-epochs = 20
+epochs = 5
 limit_train_batches = None
 limit_val_batches = None
 debug = False

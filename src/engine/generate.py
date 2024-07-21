@@ -2,8 +2,10 @@ import torch
 from .module import ShakespeareModule
 import torch.nn.functional as F
 
+import shutil
+from pathlib import Path
 
-from .settings import num_chars, context_size, decode
+from .settings import num_chars, context_size, decode, models_path
 
 
 def generate_sentense(model_path, max_tokens=1000):
@@ -19,9 +21,17 @@ def generate_sentense(model_path, max_tokens=1000):
         x_next = torch.multinomial(probs, num_samples=1, replacement=True)
         x = torch.cat([x, x_next])
 
-    sentense = decode(x[7:].tolist())
+    sentense = decode(x[context_size:].tolist())
 
     print(sentense)
+
+    copy_file_to_models(model_path, models_path / "best.ckpt")
+
+
+def copy_file_to_models(source, destination):
+    shutil.copy(source, destination)
+
+    print(f"File copied from {source} to {destination}")
 
 
 def generate(experiment_name):

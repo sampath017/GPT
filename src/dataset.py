@@ -19,8 +19,17 @@ class ShakespearDataset(Dataset):
         self.num_chars = len(chars)
         self.ctoi = {c: i for i, c in enumerate(chars)}
         self.itoc = {i: c for i, c in enumerate(chars)}
-        self.encode = lambda s: [self.ctoi[c] for c in s]
-        self.decode = lambda l: "".join([self.itoc[i] for i in l])
+
+        def encode(self, s):
+            """Encodes a string into a list of integers."""
+            return [self.ctoi[c] for c in s]
+
+        def decode(self, l):
+            """Decodes a list of integers into a string."""
+            return "".join([self.itoc[i] for i in l])
+
+        self.enocde = encode
+        self.decode = decode
 
     def save_tokens(self):
         if not self.tokens_file.exists():

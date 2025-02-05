@@ -7,13 +7,13 @@ model = {
 
 dataset = {
     "name": "ShakespearDataset",
+    "context_size": 8,
     "batch_size": 64,
     "train_split": 0.7,
-    "val_split": 0.3,
-    "context_size": 8
+    "val_split": 0.3
 }
 
-max_epochs = 50
+max_epochs = 3
 
 optimizer = {
     "name": "AdamW",
@@ -33,6 +33,6 @@ transfer_learning = None
 # }
 
 limit_batches = None
-test_run = True
-wandb_offline = True
-fast_dev_run = True
+test_run = False
+wandb_offline = False
+fast_dev_run = False

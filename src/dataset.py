@@ -20,20 +20,17 @@ class ShakespearDataset(Dataset):
         self.ctoi = {c: i for i, c in enumerate(chars)}
         self.itoc = {i: c for i, c in enumerate(chars)}
 
-        def encode(self, s):
-            """Encodes a string into a list of integers."""
-            return [self.ctoi[c] for c in s]
+    def _encode(self, string):
+        """Encodes a string into a list of integers."""
+        return [self.ctoi[c] for c in string]
 
-        def decode(self, l):
-            """Decodes a list of integers into a string."""
-            return "".join([self.itoc[i] for i in l])
-
-        self.enocde = encode
-        self.decode = decode
+    def _decode(self, l):
+        """Decodes a list of integers into a string."""
+        return "".join([self.itoc[i] for i in l])
 
     def save_tokens(self):
         if not self.tokens_file.exists():
-            data = torch.tensor(self.encode(self.text))
+            data = torch.tensor(self._encode(self.text))
             torch.serialization.add_safe_globals(data)
 
             torch.save(data, self.tokens_file)

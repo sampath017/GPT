@@ -2,18 +2,23 @@ from models import BigramLanguageModel
 from quickai.module import QuickModule, ToyNet
 import torch.nn.functional as F
 from quickai.utils import accuracy
+import settings as s
 
 
 class BigramLanguageModule(QuickModule):
-    def __init__(self, vocab_size, model=None, toy_model=False):
+    def __init__(self, vocab_size, num_embds, model=None, toy_model=False):
         super().__init__()
-        self.vocab_size = vocab_size
         if model:
             self.model = model
         elif toy_model:
             self.model = ToyNet()
         else:
-            self.model = BigramLanguageModel(vocab_size=self.vocab_size)
+            self.model = BigramLanguageModel(
+                vocab_size=vocab_size,
+                num_embds=num_embds,
+                head_size=vocab_size,
+                context_size=s.dataset["context_size"]
+            )
 
     def forward(self, batch):
         self.model = self.model.to(self.device)

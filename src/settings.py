@@ -3,6 +3,8 @@ project_name = "GPT"
 model = {
     "name": "BigramLanguageModel",
     "num_layers": 1,
+    "num_embds": 32,
+    "head_size": 16
 }
 
 dataset = {

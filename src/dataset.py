@@ -1,5 +1,5 @@
 import torch
-from torch.utils.data import Dataset, DataLoader, random_split
+from torch.utils.data import Dataset
 
 
 class ShakespearDataset(Dataset):
@@ -16,7 +16,7 @@ class ShakespearDataset(Dataset):
         self.text = self.path.read_text()
         chars = sorted(set(self.text))
 
-        self.num_chars = len(chars)
+        self.vocab_size = len(chars)
         self.ctoi = {c: i for i, c in enumerate(chars)}
         self.itoc = {i: c for i, c in enumerate(chars)}
 

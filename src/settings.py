@@ -4,7 +4,8 @@ model = {
     "name": "BigramLanguageModel",
     "num_layers": 1,
     "num_embds": 32,
-    "head_size": 16
+    "head_size": 8,
+    "num_heads": 4
 }
 
 dataset = {

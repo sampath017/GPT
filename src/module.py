@@ -6,7 +6,7 @@ import settings as s
 
 
 class BigramLanguageModule(QuickModule):
-    def __init__(self, vocab_size, num_embds, model=None, toy_model=False):
+    def __init__(self, vocab_size=None, num_embds=None, num_heads=None, head_size=None, model=None, toy_model=False):
         super().__init__()
         if model:
             self.model = model
@@ -16,7 +16,8 @@ class BigramLanguageModule(QuickModule):
             self.model = BigramLanguageModel(
                 vocab_size=vocab_size,
                 num_embds=num_embds,
-                head_size=vocab_size,
+                head_size=head_size,
+                num_heads=num_heads,
                 context_size=s.dataset["context_size"]
             )
 

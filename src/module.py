@@ -20,6 +20,7 @@ class BigramLanguageModule(QuickModule):
                 num_heads=num_heads,
                 context_size=s.dataset["context_size"]
             )
+        self.model.device = self.device
 
     def forward(self, batch):
         self.model = self.model.to(self.device)

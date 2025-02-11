@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "GPT"
+version = "0.1.0"
+description = ""
+authors = ["sampath <118274231+sampath017@users.noreply.github.com>"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.12"
+torchvision = "^0.19.1"
+matplotlib = "^3.9.2"
+pandas = "^2.2.3"
+jupyter = "^1.1.1"
+notebook = "^7.2.2"
+wandb = "^0.18.3"
+autopep8 = "^2.3.1"
+colorama = "^0.4.6"
+torchinfo = "^1.8.0"
+quickai = { git = "https://github.com/sampath017/quickai.git" }
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

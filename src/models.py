@@ -73,19 +73,20 @@ class Block(nn.Module):
 
 
 class BigramLanguageModel(nn.Module):
-    def __init__(self, vocab_size, num_heads=None, num_embds=None, head_size=None, context_size=None):
+    def __init__(self, vocab_size, num_heads=None, num_embds=None, head_size=None, context_size=None, num_blocks=None):
         super().__init__()
         self.token_embedding_table = nn.Embedding(vocab_size, num_embds)
         self.position_embedding_table = nn.Embedding(context_size, num_embds)
         self.blocks = nn.Sequential(
-            *[Block(vocab_size, num_heads, num_embds, head_size, context_size) for _ in range(3)]
+            *[Block(vocab_size, num_heads, num_embds, head_size, context_size) for _ in range(num_blocks)]
         )
         self.lm_head = nn.Linear(num_embds, vocab_size)
 
     def forward(self, x):
         _, T = x.shape
         token_embds = self.token_embedding_table(x)
-        position_embds = self.position_embedding_table(torch.arange(T, device=self.device))
+        position_embds = self.position_embedding_table(
+            torch.arange(T, device=self.device))
 
         x = token_embds + position_embds
 

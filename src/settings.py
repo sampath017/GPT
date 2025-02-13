@@ -5,7 +5,8 @@ model = {
     "num_layers": 1,
     "num_embds": 32,
     "head_size": 8,
-    "num_heads": 4
+    "num_heads": 4,
+    "num_blocks": 3
 }
 
 dataset = {

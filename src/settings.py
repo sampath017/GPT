@@ -2,16 +2,15 @@ project_name = "GPT"
 
 model = {
     "name": "BigramLanguageModel",
-    "num_layers": 1,
-    "num_embds": 32,
-    "head_size": 8,
+    "num_embds": 128,
+    "head_size": 32,
     "num_heads": 4,
-    "num_blocks": 3
+    "num_blocks": 12
 }
 
 dataset = {
     "name": "ShakespearDataset",
-    "context_size": 8,
+    "context_size": 64,
     "batch_size": 64,
     "train_split": 0.7,
     "val_split": 0.3

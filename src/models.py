@@ -34,8 +34,9 @@ class Head(nn.Module):
 class MultiHeadAttention(nn.Module):
     def __init__(self, num_heads, head_size, num_embds, context_size):
         super().__init__()
-        self.heads = [Head(num_embds, head_size, context_size)
-                      for _ in range(num_heads)]
+        self.heads = nn.ModuleList([Head(num_embds, head_size, context_size)
+                      for _ in range(num_heads)])
+
         self.proj = nn.Linear(num_heads*head_size, num_embds)
 
     def forward(self, x):

@@ -18,6 +18,7 @@ autopep8 = "^2.3.1"
 colorama = "^0.4.6"
 torchinfo = "^1.8.0"
 quickai = { git = "https://github.com/sampath017/quickai.git" }
+tqdm = "^4.67.1"
 
 [build-system]
 requires = ["poetry-core"]

@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch import nn
-
+import settings as s
 
 class Head(nn.Module):
     def __init__(self, num_embds, head_size, context_size):
@@ -13,6 +13,8 @@ class Head(nn.Module):
         self.register_buffer('tril', torch.tril(
             torch.ones(context_size, context_size)))
 
+        self.dropout = nn.Dropout(s.model["dropout"])
+
     def forward(self, x):
         _, T, E = x.shape
         k = self.key(x)
@@ -23,6 +25,7 @@ class Head(nn.Module):
         wei = wei.masked_fill(
             self.tril[:T, :T] == 0, float('-inf'))
         wei = F.softmax(wei, dim=-1)
+        wei = self.dropout(wei)
 
         # perform the weighted aggregation of the values
         v = self.value(x)
@@ -38,6 +41,7 @@ class MultiHeadAttention(nn.Module):
                       for _ in range(num_heads)])
 
         self.proj = nn.Linear(num_heads*head_size, num_embds)
+        self.dropout = nn.Dropout(s.model["dropout"])
 
     def forward(self, x):
         x = torch.cat([head(x) for head in self.heads], dim=-1)
@@ -52,6 +56,7 @@ class FeedForward(nn.Module):
             nn.Linear(num_embds, num_embds*4),
             nn.ReLU(),
             nn.Linear(num_embds*4, num_embds),
+            nn.Dropout(s.model["dropout"]),
         )
 
     def forward(self, x):

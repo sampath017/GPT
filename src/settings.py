@@ -1,11 +1,13 @@
 project_name = "GPT"
 
+
 model = {
     "name": "BigramLanguageModel",
     "num_embds": 128,
     "head_size": 32,
     "num_heads": 4,
-    "num_blocks": 12
+    "num_blocks": 4,
+    "dropout": 0.2
 }
 
 dataset = {
@@ -35,7 +37,7 @@ transfer_learning = None
 #     "change_fc": True
 # }
 
-limit_batches = None
-test_run = False
+limit_batches = 3000
 wandb_offline = False
+test_run = False
 fast_dev_run = False

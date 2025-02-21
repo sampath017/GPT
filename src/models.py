@@ -52,7 +52,6 @@ class FeedForward(nn.Module):
             nn.Linear(num_embds, num_embds*4),
             nn.ReLU(),
             nn.Linear(num_embds*4, num_embds),
-            nn.ReLU()
         )
 
     def forward(self, x):
@@ -65,10 +64,12 @@ class Block(nn.Module):
         self.sa_heads = MultiHeadAttention(
             num_heads, head_size, num_embds, context_size)
         self.ff = FeedForward(num_embds)
+        self.ln1 = nn.LayerNorm(num_embds)
+        self.ln2 = nn.LayerNorm(num_embds)
 
     def forward(self, x):
-        x = self.sa_heads(x)
-        logits = self.ff(x)
+        x = x + self.sa_heads(self.ln1(x))
+        logits = x + self.ff(self.ln2(x))
 
         return logits
 
@@ -79,7 +80,8 @@ class BigramLanguageModel(nn.Module):
         self.token_embedding_table = nn.Embedding(vocab_size, num_embds)
         self.position_embedding_table = nn.Embedding(context_size, num_embds)
         self.blocks = nn.Sequential(
-            *[Block(vocab_size, num_heads, num_embds, head_size, context_size) for _ in range(num_blocks)]
+            *[Block(vocab_size, num_heads, num_embds, head_size, context_size) for _ in range(num_blocks)],
+            nn.LayerNorm(num_embds)
         )
         self.lm_head = nn.Linear(num_embds, vocab_size)
 

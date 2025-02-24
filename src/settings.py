@@ -2,7 +2,7 @@ project_name = "GPT"
 
 
 model = {
-    "name": "BigramLanguageModel",
+    "name": "GPT",
     "num_embds": 128,
     "head_size": 32,
     "num_heads": 4,
@@ -12,13 +12,13 @@ model = {
 
 dataset = {
     "name": "ShakespearDataset",
-    "context_size": 64,
-    "batch_size": 64,
+    "context_size": 128,
+    "batch_size": 512,
     "train_split": 0.7,
     "val_split": 0.3
 }
 
-max_epochs = 3
+max_epochs = 6
 
 optimizer = {
     "name": "AdamW",
@@ -37,7 +37,7 @@ transfer_learning = None
 #     "change_fc": True
 # }
 
-limit_batches = 3000
+limit_batches = None
 wandb_offline = False
 test_run = False
 fast_dev_run = False

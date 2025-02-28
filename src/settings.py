@@ -37,7 +37,7 @@ transfer_learning = None
 #     "change_fc": True
 # }
 
-limit_batches = None
-wandb_offline = False
+limit_batches = 1
+wandb_offline = True
 test_run = False
 fast_dev_run = False

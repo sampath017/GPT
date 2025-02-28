@@ -19,6 +19,7 @@ colorama = "^0.4.6"
 torchinfo = "^1.8.0"
 quickai = { git = "https://github.com/sampath017/quickai.git" }
 tqdm = "^4.67.1"
+tiktoken = "^0.9.0"
 
 [build-system]
 requires = ["poetry-core"]

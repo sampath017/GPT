@@ -1,19 +1,18 @@
 project_name = "GPT"
 
-
 model = {
     "name": "GPT",
     "num_embds": 128,
     "head_size": 32,
     "num_heads": 4,
     "num_blocks": 4,
-    "dropout": 0.2
+    "dropout": 0.0
 }
 
 dataset = {
     "name": "ShakespearDataset",
     "context_size": 128,
-    "batch_size": 512,
+    "batch_size": 64,
     "train_split": 0.7,
     "val_split": 0.3
 }
@@ -37,7 +36,7 @@ transfer_learning = None
 #     "change_fc": True
 # }
 
-limit_batches = 1
-wandb_offline = True
+limit_batches = None
+wandb_offline = False
 test_run = False
 fast_dev_run = False

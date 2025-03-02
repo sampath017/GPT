@@ -26,27 +26,27 @@ class ShakespearDataset(Dataset):
 
     def save_tokens(self):
         if not self.tokens_file.exists():
-            data = torch.tensor(self._encode(self.text))
-            torch.serialization.add_safe_globals(data)
-            torch.save(data, self.tokens_file)
+            tokens = torch.tensor(self._encode(self.text))
+            torch.serialization.add_safe_globals(tokens)
+            torch.save(tokens, self.tokens_file)
 
     def load_tokens(self):
-        self.data = torch.load(self.tokens_file, weights_only=True)
+        self.tokens = torch.load(self.tokens_file, weights_only=True)
 
     def __len__(self):
-        return len(self.data) - (s.dataset["context_size"] + 1)
+        return len(self.tokens) - (s.dataset["context_size"] + 1)
 
     def __getitem__(self, idx):
         if idx < 0:
             idx = len(self) + (idx + 1)
 
         if idx <= len(self):
-            x = self.data[idx:idx + s.dataset["context_size"]]
-            y = self.data[idx + 1:idx + s.dataset["context_size"] + 1]
+            x = self.tokens[idx:idx + s.dataset["context_size"]]
+            y = self.tokens[idx + 1:idx + s.dataset["context_size"] + 1]
 
             return x, y
         else:
             raise IndexError(
-                f"Index {idx} out of range for data length {len(self.data)} with block size {s.dataset["context_size"]}")
+                f"Index {idx} out of range for data length {len(self.tokens)} with block size {s.dataset["context_size"]}")
 
     def __repr__(self): return f"Dataset({s.dataset["context_size"]=})"

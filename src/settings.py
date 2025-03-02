@@ -2,16 +2,16 @@ project_name = "GPT"
 
 model = {
     "name": "GPT",
-    "num_embds": 128,
-    "head_size": 32,
-    "num_heads": 4,
-    "num_blocks": 4,
+    "num_embds": 768,
+    "head_size": 64,
+    "num_heads": 12,
+    "num_blocks": 12,
     "dropout": 0.0
 }
 
 dataset = {
     "name": "ShakespearDataset",
-    "context_size": 128,
+    "context_size": 1024,
     "batch_size": 64,
     "train_split": 0.7,
     "val_split": 0.3

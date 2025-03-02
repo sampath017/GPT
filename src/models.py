@@ -3,15 +3,28 @@ import torch.nn.functional as F
 from torch import nn
 import settings as s
 
+
 class Head(nn.Module):
-    def __init__(self, num_embds, head_size, context_size):
+    def __init__(self):
         super().__init__()
-        self.key = nn.Linear(num_embds, head_size, bias=False)
-        self.query = nn.Linear(num_embds, head_size, bias=False)
-        self.value = nn.Linear(num_embds, head_size, bias=False)
+        self.key = nn.Linear(
+            s.model["num_embds"],
+            s.model["head_size"],
+            bias=False
+        )
+        self.query = nn.Linear(
+            s.model["num_embds"],
+            s.model["head_size"],
+            bias=False
+        )
+        self.value = nn.Linear(
+            s.model["num_embds"],
+            s.model["head_size"],
+            bias=False
+        )
 
         self.register_buffer('tril', torch.tril(
-            torch.ones(context_size, context_size)))
+            torch.ones(s.dataset["context_size"], s.dataset["context_size"])))
 
         self.dropout = nn.Dropout(s.model["dropout"])
 
@@ -35,12 +48,13 @@ class Head(nn.Module):
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, num_heads, head_size, num_embds, context_size):
+    def __init__(self):
         super().__init__()
-        self.heads = nn.ModuleList([Head(num_embds, head_size, context_size)
-                      for _ in range(num_heads)])
+        self.heads = nn.ModuleList([Head()
+                                   for _ in range(s.model["num_heads"])])
 
-        self.proj = nn.Linear(num_heads*head_size, num_embds)
+        self.proj = nn.Linear(
+            s.model["num_heads"]*s.model["head_size"], s.model["num_embds"])
         self.dropout = nn.Dropout(s.model["dropout"])
 
     def forward(self, x):
@@ -54,7 +68,7 @@ class FeedForward(nn.Module):
         super().__init__()
         self.ff = nn.Sequential(
             nn.Linear(num_embds, num_embds*4),
-            nn.ReLU(),
+            nn.GELU(),
             nn.Linear(num_embds*4, num_embds),
             nn.Dropout(s.model["dropout"]),
         )
@@ -64,13 +78,12 @@ class FeedForward(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(self, vocab_size, num_heads=None, num_embds=None, head_size=None, context_size=None):
+    def __init__(self):
         super().__init__()
-        self.sa_heads = MultiHeadAttention(
-            num_heads, head_size, num_embds, context_size)
-        self.ff = FeedForward(num_embds)
-        self.ln1 = nn.LayerNorm(num_embds)
-        self.ln2 = nn.LayerNorm(num_embds)
+        self.ln1 = nn.LayerNorm(s.model["num_embds"])
+        self.sa_heads = MultiHeadAttention()
+        self.ln2 = nn.LayerNorm(s.model["num_embds"])
+        self.ff = FeedForward(s.model["num_embds"])
 
     def forward(self, x):
         x = x + self.sa_heads(self.ln1(x))
@@ -79,26 +92,31 @@ class Block(nn.Module):
         return logits
 
 
-class BigramLanguageModel(nn.Module):
-    def __init__(self, vocab_size, num_heads=None, num_embds=None, head_size=None, context_size=None, num_blocks=None):
+class GPT(nn.Module):
+    def __init__(self):
         super().__init__()
-        self.token_embedding_table = nn.Embedding(vocab_size, num_embds)
-        self.position_embedding_table = nn.Embedding(context_size, num_embds)
-        self.blocks = nn.Sequential(
-            *[Block(vocab_size, num_heads, num_embds, head_size, context_size) for _ in range(num_blocks)],
-            nn.LayerNorm(num_embds)
-        )
-        self.lm_head = nn.Linear(num_embds, vocab_size)
+        self.transformer = nn.ModuleDict(dict(
+            token_embedding_table=nn.Embedding(
+                s.dataset["vocab_size"], s.model["num_embds"]),
+            position_embedding_table=nn.Embedding(
+                s.dataset["context_size"], s.model["num_embds"]),
+            blocks=nn.ModuleList([Block()
+                                 for _ in range(s.model["num_blocks"])]),
+            ln=nn.LayerNorm(s.model["num_embds"])
+        ))
+
+        self.lm_head = nn.Linear(s.model["num_embds"], s.dataset["vocab_size"])
 
     def forward(self, x):
         _, T = x.shape
-        token_embds = self.token_embedding_table(x)
-        position_embds = self.position_embedding_table(
+        token_embds = self.transformer.token_embedding_table(x)
+        position_embds = self.transformer.position_embedding_table(
             torch.arange(T, device=self.device))
 
         x = token_embds + position_embds
+        for block in self.transformer.blocks:
+            x = block(x)
+        x = self.transformer.ln(x)
+        x = self.lm_head(x)
 
-        x = self.blocks(x)
-        logits = self.lm_head(x)
-
-        return logits
+        return x

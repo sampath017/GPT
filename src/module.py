@@ -23,6 +23,8 @@ class GPTModule(QuickModule):
         y = y.reshape(B*T)
 
         loss = F.cross_entropy(logits, y)
+        import code; code.interact(local=locals())
+        
         acc = accuracy(logits, y)
 
         return loss, acc

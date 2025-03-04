@@ -12,7 +12,7 @@ model = {
 dataset = {
     "name": "ShakespearDataset",
     "context_size": 1024,
-    "batch_size": 8,
+    "batch_size": 4,
     "train_split": 0.7,
     "val_split": 0.3
 }

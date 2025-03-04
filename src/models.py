@@ -107,6 +107,9 @@ class GPT(nn.Module):
 
         self.lm_head = nn.Linear(s.model["num_embds"], s.dataset["vocab_size"])
 
+        # weight sharing scheme
+        self.transformer.token_embedding_table.weight = self.lm_head.weight
+
     def forward(self, x):
         _, T = x.shape
         token_embds = self.transformer.token_embedding_table(x)

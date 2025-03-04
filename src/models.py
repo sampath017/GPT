@@ -2,75 +2,46 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 import settings as s
+import math
 
 
-class Head(nn.Module):
+class CausalSelfAttention(nn.Module):
     def __init__(self):
         super().__init__()
-        self.key = nn.Linear(
-            s.model["num_embds"],
-            s.model["head_size"],
-            bias=False
-        )
-        self.query = nn.Linear(
-            s.model["num_embds"],
-            s.model["head_size"],
-            bias=False
-        )
-        self.value = nn.Linear(
-            s.model["num_embds"],
-            s.model["head_size"],
-            bias=False
-        )
-
-        self.register_buffer('tril', torch.tril(
-            torch.ones(s.dataset["context_size"], s.dataset["context_size"])))
-
-        self.dropout = nn.Dropout(s.model["dropout"])
+        assert s.model["num_embds"] % s.model["num_heads"] == 0
+        self.c_attn = nn.Linear(s.model["num_embds"], 3 * s.model["num_embds"])
+        self.c_proj = nn.Linear(s.model["num_embds"], s.model["num_embds"])
+        self.register_buffer("bias", torch.tril(torch.ones(s.dataset["context_size"], s.dataset["context_size"])).reshape(
+            1, 1, s.dataset["context_size"], s.dataset["context_size"]))
 
     def forward(self, x):
-        _, T, E = x.shape
-        k = self.key(x)
-        q = self.query(x)
+        B, T, C = x.size()
+        qkv = self.c_attn(x)
+        q, k, v = qkv.split(s.model["num_embds"], dim=2)
+        k = k.view(B, T, s.model["num_heads"], C //
+                   s.model["num_heads"]).transpose(1, 2)
+        q = q.view(B, T, s.model["num_heads"], C //
+                   s.model["num_heads"]).transpose(1, 2)
+        v = v.view(B, T, s.model["num_heads"], C //
+                   s.model["num_heads"]).transpose(1, 2)
 
-        # compute attention scores ("affinities")
-        wei = q.matmul(k.permute(0, 2, 1)) * E**-0.5
-        wei = wei.masked_fill(
-            self.tril[:T, :T] == 0, float('-inf'))
-        wei = F.softmax(wei, dim=-1)
-        wei = self.dropout(wei)
+        att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
+        att = att.masked_fill(self.bias[:, :, :T, :T] == 0, float('-inf'))
+        att = F.softmax(att, dim=-1)
+        y = att @ v
+        y = y.transpose(1, 2).contiguous().view(B, T, C)
+        y = self.c_proj(y)
 
-        # perform the weighted aggregation of the values
-        v = self.value(x)
-        out = wei.matmul(v)
-
-        return out
-
-
-class MultiHeadAttention(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.heads = nn.ModuleList([Head()
-                                   for _ in range(s.model["num_heads"])])
-
-        self.proj = nn.Linear(
-            s.model["num_heads"]*s.model["head_size"], s.model["num_embds"])
-        self.dropout = nn.Dropout(s.model["dropout"])
-
-    def forward(self, x):
-        x = torch.cat([head(x) for head in self.heads], dim=-1)
-
-        return self.proj(x)
+        return y
 
 
 class FeedForward(nn.Module):
-    def __init__(self, num_embds):
+    def __init__(self):
         super().__init__()
         self.ff = nn.Sequential(
-            nn.Linear(num_embds, num_embds*4),
+            nn.Linear(s.model["num_embds"], s.model["num_embds"]*4),
             nn.GELU(),
-            nn.Linear(num_embds*4, num_embds),
-            nn.Dropout(s.model["dropout"]),
+            nn.Linear(s.model["num_embds"]*4, s.model["num_embds"]),
         )
 
     def forward(self, x):
@@ -81,20 +52,21 @@ class Block(nn.Module):
     def __init__(self):
         super().__init__()
         self.ln1 = nn.LayerNorm(s.model["num_embds"])
-        self.sa_heads = MultiHeadAttention()
+        self.attention_block = CausalSelfAttention()
         self.ln2 = nn.LayerNorm(s.model["num_embds"])
-        self.ff = FeedForward(s.model["num_embds"])
+        self.ff = FeedForward()
 
     def forward(self, x):
-        x = x + self.sa_heads(self.ln1(x))
+        x = x + self.attention_block(self.ln1(x))
         logits = x + self.ff(self.ln2(x))
 
         return logits
 
 
 class GPT(nn.Module):
-    def __init__(self):
+    def __init__(self, device):
         super().__init__()
+        self.device = device
         self.transformer = nn.ModuleDict(dict(
             token_embedding_table=nn.Embedding(
                 s.dataset["vocab_size"], s.model["num_embds"]),
@@ -120,6 +92,6 @@ class GPT(nn.Module):
         for block in self.transformer.blocks:
             x = block(x)
         x = self.transformer.ln(x)
-        x = self.lm_head(x)
+        logits = self.lm_head(x)
 
-        return x
+        return logits

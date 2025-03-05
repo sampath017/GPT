@@ -16,7 +16,6 @@ class ShakespearDataset(Dataset):
     def setup(self):
         self.text = self.path.read_text()
         self.encoder = tiktoken.encoding_for_model("gpt-2")
-        s.dataset["vocab_size"] = self.encoder.n_vocab
 
     def _encode(self, string):
         return self.encoder.encode(string)

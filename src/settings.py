@@ -11,7 +11,7 @@ dataset = {
     "name": "ShakespearDataset",
     "vocab_size": 50304,
     "context_size": 1024,
-    "batch_size": 16,
+    "batch_size": 32,
     "train_split": 0.7,
     "val_split": 0.3
 }

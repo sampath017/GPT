@@ -9,7 +9,7 @@ apt-get update
 apt-get install python3.12 nvtop htop -y
 apt-get remove python3 -y
 alias python='python3.12'
-sudo apt-get install -y python3.12-dev
+apt-get install -y python3.12-dev
 apt-get install python3-pip -y
 
 pip install poetry

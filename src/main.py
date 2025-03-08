@@ -2,8 +2,7 @@ import settings as s
 from torch.nn import functional as F
 from models import GPT
 from utils import accuracy, count_parameters, model_size
-from torch.utils.data import DataLoader, random_split
-from dataset import ShakespearDataset
+from dataset import get_dataloader
 import torch
 from pathlib import Path
 import sys
@@ -15,35 +14,19 @@ from torch.distributed import init_process_group, destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
 
+
+torch.manual_seed(1337)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed(1337)
+
 data_path = Path("../data")
 logs_path = Path("../logs")
 logs_path.mkdir(exist_ok=True)
-
-device = "cuda" if torch.cuda.is_available() else "cpu"
-# cpu_count = os.cpu_count()
-cpu_count = 7
-
-dataset = ShakespearDataset(data_path/"shakespear.txt")
-
-train_dataset, val_dataset = random_split(
-    dataset, [s.dataset["train_split"], s.dataset["val_split"]]
-)
-
-train_dataloader = DataLoader(
-    train_dataset, batch_size=s.dataset["batch_size"], shuffle=True, num_workers=cpu_count)
-val_dataloader = DataLoader(
-    val_dataset, batch_size=s.dataset["batch_size"],  num_workers=cpu_count)
-
-model = GPT(device).to(device)
-model = torch.compile(model)
-model_size(model)
-count_parameters(model)
 
 
 max_lr = 6e-4
 min_lr = max_lr * 0.1
 warmup_steps = 10
-max_steps = 50
 
 
 def get_lr(it):
@@ -52,11 +35,11 @@ def get_lr(it):
         return max_lr * (it+1) / warmup_steps
 
     # 2) if it > lr_decay_iters, return min learning rate
-    if it > max_steps:
+    if it > s.max_steps:
         return min_lr
 
     # 3) in between, use cosine decay down to min learning rate
-    decay_ratio = (it - warmup_steps) / (max_steps - warmup_steps)
+    decay_ratio = (it - warmup_steps) / (s.max_steps - warmup_steps)
     assert 0 <= decay_ratio <= 1
     # coeff starts at 1 and goes to 0
     coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))
@@ -64,26 +47,15 @@ def get_lr(it):
     return min_lr + coeff * (max_lr - min_lr)
 
 
-optimizer = model.configure_optimizers(
-    weight_decay=0.1, learning_rate=6e-4, device=device)
-
-assert s.dataset["total_batch_size"] % (
-    s.dataset["batch_size"] * s.dataset["context_size"]) == 0, "make sure total_batch_size is divisible by B * T"
-grad_accum_steps = s.dataset["total_batch_size"] // (
-    s.dataset["batch_size"] * s.dataset["context_size"])
-print(f"=> calculated gradient accumulation steps: {grad_accum_steps}")
-
-train_dataloader_iter = iter(train_dataloader)
-
 ddp = int(os.environ.get('RANK', -1)) != -1  # is this a ddp run?
 if ddp:
     # use of DDP atm demands CUDA, we set the device appropriately according to rank
     assert torch.cuda.is_available(), "for now i think we need CUDA for DDP"
     init_process_group(backend='nccl')
     ddp_rank = int(os.environ['RANK'])
-    ddp_local_rank = int(os.environ['LOCAL_RANK'])
+    # ddp_local_rank = int(os.environ['LOCAL_RANK'])
     ddp_world_size = int(os.environ['WORLD_SIZE'])
-    device = f'cuda:{ddp_local_rank}'
+    device = f'cuda:{ddp_rank}'
     torch.cuda.set_device(device)
     # this process will do logging, checkpointing etc.
     master_process = ddp_rank == 0
@@ -97,9 +69,39 @@ else:
     device = "cpu"
     if torch.cuda.is_available():
         device = "cuda"
-    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-        device = "mps"
     print(f"using device: {device}")
+
+
+# create model
+model = GPT(device)
+model.to(device)
+model = torch.compile(model)
+if ddp:
+    model = DDP(model, device_ids=[ddp_rank])
+# always contains the "raw" unwrapped model
+raw_model = model.module if ddp else model
+
+model_size(raw_model)
+count_parameters(raw_model)
+
+train_dataloader = get_dataloader(data_path, "train", ddp=ddp)
+
+optimizer = raw_model.configure_optimizers(
+    weight_decay=0.1, learning_rate=6e-4, device=device)
+
+train_dataloader_iter = iter(train_dataloader)
+
+assert s.dataset["total_batch_size"] % (s.dataset["batch_size"] * s.dataset["context_size"]
+                                        * ddp_world_size) == 0, "make sure total_batch_size is divisible by B * T * ddp_world_size"
+grad_accum_steps = s.dataset["total_batch_size"] // (
+    s.dataset["batch_size"] * s.dataset["context_size"] * ddp_world_size)
+if master_process:
+    print(f"total desired batch size: {s.dataset["total_batch_size"]}")
+    print(f"=> calculated gradient accumulation steps: {grad_accum_steps}")
+
+if ddp:
+    print(f"Iam GPU: {ddp_rank}")
+    destroy_process_group()
 
 
 def main():
@@ -114,17 +116,22 @@ def main():
                 x, y = next(train_dataloader_iter)
                 x, y = x.to(device), y.to(device)
                 with torch.autocast(device_type=device, dtype=torch.bfloat16):
-                    logits = model(x)
+                    logits = model(x, y)
                     loss = F.cross_entropy(
                         logits.reshape(-1, logits.shape[-1]), y.reshape(-1))
+                    # we have to scale the loss to account for gradient accumulation,
+                    # because the gradients just add on each successive backward().
+                    # addition of gradients corresponds to a SUM in the objective, but
+                    # instead of a SUM we want MEAN. Scale the loss here so it comes out right
+                    loss = loss / grad_accum_steps
+                    loss_accum += loss.detach()
+                    if ddp:
+                        model.require_backward_grad_sync = (
+                            micro_step == grad_accum_steps - 1)
+                    loss.backward()
 
-                # we have to scale the loss to account for gradient accumulation,
-                # because the gradients just add on each successive backward().
-                # addition of gradients corresponds to a SUM in the objective, but
-                # instead of a SUM we want MEAN. Scale the loss here so it comes out right
-                loss = loss / grad_accum_steps
-                step_loss += loss.detach()
-                loss.backward()
+            if ddp:
+                dist.all_reduce(loss_accum, op=dist.ReduceOp.AVG)
 
             norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             # determine and set the learning rate for this iteration
@@ -137,12 +144,15 @@ def main():
             t1 = time.time()
             dt = t1 - t0  # time difference in seconds
             tokens_processed = s.dataset["batch_size"] * \
-                s.dataset["context_size"] * grad_accum_steps
+                s.dataset["context_size"] * grad_accum_steps * ddp_world_size
             tokens_per_sec = tokens_processed / dt
+            if master_process:
+                print(
+                    f"step {step:4d} | loss: {step_loss:.4f} | norm: {norm:.4f} | lr:{lr:.4f} | dt: {dt*1000:.2f}ms | tok/sec: {tokens_per_sec:.2f}")
 
-            print(
-                f"step {step:4d} | loss: {step_loss:.4f} | norm: {norm:.4f} | lr:{lr:.4f} | dt: {dt*1000:.2f}ms | tok/sec: {tokens_per_sec:.2f}")
+    if ddp:
+        destroy_process_group()
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()

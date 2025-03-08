@@ -2,6 +2,28 @@ import torch
 from torch.utils.data import Dataset
 import settings as s
 import tiktoken
+from torch.utils.data import DataLoader, random_split
+from torch.utils.data.distributed import DistributedSampler
+
+
+def get_dataloader(data_path, type="train", ddp=False):
+    dataset = ShakespearDataset(data_path/"shakespear.txt")
+
+    train_dataset, val_dataset = random_split(
+        dataset, [s.dataset["train_split"], s.dataset["val_split"]]
+    )
+
+    train_dataloader = DataLoader(
+        train_dataset,
+        batch_size=s.dataset["batch_size"],
+        shuffle=not ddp,
+        sampler=DistributedSampler(train_dataset) if ddp else None
+    )
+
+    val_dataloader = DataLoader(
+        val_dataset, batch_size=s.dataset["batch_size"])
+
+    return train_dataloader
 
 
 class ShakespearDataset(Dataset):

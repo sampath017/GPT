@@ -15,9 +15,9 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
 
 
-torch.manual_seed(1337)
+torch.manual_seed(0)
 if torch.cuda.is_available():
-    torch.cuda.manual_seed(1337)
+    torch.cuda.manual_seed(0)
 
 data_path = Path("../data")
 logs_path = Path("../logs")
@@ -78,7 +78,6 @@ model.to(device)
 model = torch.compile(model)
 if ddp:
     model = DDP(model, device_ids=[ddp_rank])
-# always contains the "raw" unwrapped model
 raw_model = model.module if ddp else model
 
 model_size(raw_model)

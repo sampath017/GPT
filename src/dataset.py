@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader, random_split
 from torch.utils.data.distributed import DistributedSampler
 
 
-def get_dataloader(data_path, type="train", ddp=False):
+def get_dataloader(data_path, split="train", ddp=False):
     dataset = ShakespearDataset(data_path/"shakespear.txt")
 
     train_dataset, val_dataset = random_split(
@@ -23,7 +23,9 @@ def get_dataloader(data_path, type="train", ddp=False):
     val_dataloader = DataLoader(
         val_dataset, batch_size=s.dataset["batch_size"])
 
-    return train_dataloader
+    dataloader = train_dataloader if split == "train" else val_dataloader
+
+    return dataloader
 
 
 class ShakespearDataset(Dataset):
@@ -71,3 +73,7 @@ class ShakespearDataset(Dataset):
                 f"Index {idx} out of range for data length {len(self.tokens)} with block size {s.dataset["context_size"]}")
 
     def __repr__(self): return f"Dataset({s.dataset["context_size"]=})"
+
+
+class FineWeb10B(Dataset):
+    pass

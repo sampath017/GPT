@@ -19,11 +19,6 @@ torch.manual_seed(0)
 if torch.cuda.is_available():
     torch.cuda.manual_seed(0)
 
-data_path = Path("../data")
-logs_path = Path("../logs")
-logs_path.mkdir(exist_ok=True)
-
-
 max_lr = 6e-4
 min_lr = max_lr * 0.1
 warmup_steps = 10
@@ -83,7 +78,7 @@ raw_model = model.module if ddp else model
 model_size(raw_model)
 count_parameters(raw_model)
 
-train_dataloader = get_dataloader(data_path, "train", ddp=ddp)
+train_dataloader = get_dataloader(s.data_path, split="train", ddp=ddp)
 
 optimizer = raw_model.configure_optimizers(
     weight_decay=0.1, learning_rate=6e-4, device=device)

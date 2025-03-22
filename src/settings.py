@@ -1,3 +1,9 @@
+from pathlib import Path
+
+data_path = Path("/home/jl_fs/edu_fineweb10B")
+logs_path = Path("../logs")
+logs_path.mkdir(exist_ok=True)
+
 project_name = "GPT"
 
 model = {

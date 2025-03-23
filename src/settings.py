@@ -1,6 +1,6 @@
 from pathlib import Path
 
-data_path = Path("../data/edu_fineweb10B")
+data_path = Path("../data/edu_fineweb1B/shards")
 logs_path = Path("../logs")
 logs_path.mkdir(exist_ok=True)
 
@@ -22,8 +22,5 @@ dataset = {
     "train_split": 0.7,
     "val_split": 0.3
 }
-
-max_epochs = 1
-max_steps = 10
 
 wandb_offline = False

@@ -87,16 +87,15 @@ def load_tokens(filename):
 
 
 class DataLoaderLite:
-    def __init__(self, B, T, process_rank, num_processes, split, master_process):
-        self.B = B
-        self.T = T
+    def __init__(self, data_path, process_rank, num_processes, split, master_process):
+        self.data_path = data_path
+        self.B, self.T = s.dataset["batch_size"], s.dataset["context_size"]
         self.process_rank = process_rank
         self.num_processes = num_processes
         assert split in {'train', 'val'}
 
         # get the shard filenames
-        data_root = Path("edu_fineweb10B")
-        shards = [s for s in data_root.iterdir() if split in s.name]
+        shards = [s for s in self.data_path.iterdir() if split in s.name]
         shards = sorted(shards)
         self.shards = shards
 
@@ -120,6 +119,7 @@ class DataLoaderLite:
         y = (buf[1:]).view(B, T)  # targets
         # advance the position in the tensor
         self.current_position += B * T * self.num_processes
+
         # if loading the next batch would be out of bounds, advance to next shard
         if self.current_position + (B * T * self.num_processes + 1) > len(self.tokens):
             self.current_shard = (self.current_shard + 1) % len(self.shards)

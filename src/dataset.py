@@ -1,9 +1,11 @@
+import numpy as np
 import torch
 from torch.utils.data import Dataset
 import settings as s
 import tiktoken
 from torch.utils.data import DataLoader, random_split
 from torch.utils.data.distributed import DistributedSampler
+from pathlib import Path
 
 
 def get_dataloader(data_path, split="train", ddp=False):
@@ -29,6 +31,7 @@ def get_dataloader(data_path, split="train", ddp=False):
 
 
 class ShakespearDataset(Dataset):
+    # ~3M tokens
     def __init__(self, path):
         self.path = path
         self.tokens_file = path.parent / "tokens.pt"
@@ -75,5 +78,52 @@ class ShakespearDataset(Dataset):
     def __repr__(self): return f"Dataset({s.dataset["context_size"]=})"
 
 
-class FineWeb10B(Dataset):
-    pass
+def load_tokens(filename):
+    npt = np.load(filename)
+    npt = npt.astype(np.int32)
+    ptt = torch.tensor(npt, dtype=torch.long)
+
+    return ptt
+
+
+class DataLoaderLite:
+    def __init__(self, B, T, process_rank, num_processes, split, master_process):
+        self.B = B
+        self.T = T
+        self.process_rank = process_rank
+        self.num_processes = num_processes
+        assert split in {'train', 'val'}
+
+        # get the shard filenames
+        data_root = Path("edu_fineweb10B")
+        shards = [s for s in data_root.iterdir() if split in s.name]
+        shards = sorted(shards)
+        self.shards = shards
+
+        assert len(shards) > 0, f"no shards found for split {split}"
+
+        if master_process:
+            print(f"found {len(shards)} shards for split {split}")
+
+        self.reset()
+
+    def reset(self):
+        # state, init at shard zero
+        self.current_shard = 0
+        self.tokens = load_tokens(self.shards[self.current_shard])
+        self.current_position = self.B * self.T * self.process_rank
+
+    def next_batch(self):
+        B, T = self.B, self.T
+        buf = self.tokens[self.current_position: self.current_position+B*T+1]
+        x = (buf[:-1]).view(B, T)  # inputs
+        y = (buf[1:]).view(B, T)  # targets
+        # advance the position in the tensor
+        self.current_position += B * T * self.num_processes
+        # if loading the next batch would be out of bounds, advance to next shard
+        if self.current_position + (B * T * self.num_processes + 1) > len(self.tokens):
+            self.current_shard = (self.current_shard + 1) % len(self.shards)
+            self.tokens = load_tokens(self.shards[self.current_shard])
+            self.current_position = B * T * self.process_rank
+
+        return x, y

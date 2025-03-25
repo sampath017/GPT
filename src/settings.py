@@ -17,7 +17,7 @@ dataset = {
     "name": "Fineweb1B",
     "vocab_size": 50304,
     "context_size": 1024,
-    "batch_size": 16,
+    "batch_size": 32,
     "total_batch_size": 524288,  # 2**19, ~0.5M, in number of tokens
     "train_split": 0.7,
     "val_split": 0.3

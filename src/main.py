@@ -76,8 +76,9 @@ if ddp:
     model = DDP(model, device_ids=[ddp_rank])
 raw_model = model.module if ddp else model
 
-model_size(raw_model)
-count_parameters(raw_model)
+if master_process:
+    model_size(raw_model)
+    count_parameters(raw_model)
 
 train_loader = DataLoaderLite(s.data_path, process_rank=ddp_rank,
                               num_processes=ddp_world_size, split="train", master_process=master_process)
@@ -141,6 +142,7 @@ def main():
         destroy_process_group()
 
 # poetry run torchrun --standalone --nproc_per_node=2 src/main.py
+
 
 if __name__ == "__main__":
     main()

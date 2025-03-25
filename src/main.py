@@ -69,7 +69,7 @@ else:
 
 
 # create model
-model = GPT(device)
+model = GPT(device, master_process)
 model.to(device)
 model = torch.compile(model)
 if ddp:
@@ -90,7 +90,7 @@ assert s.dataset["total_batch_size"] % (s.dataset["batch_size"] * s.dataset["con
 grad_accum_steps = s.dataset["total_batch_size"] // (
     s.dataset["batch_size"] * s.dataset["context_size"] * ddp_world_size)
 if master_process:
-    print(f"total desired batch size: {s.dataset["total_batch_size"]}")
+    print(f"total desired batch size: {s.dataset['total_batch_size']}")
     print(f"=> calculated gradient accumulation steps: {grad_accum_steps}")
 
 
@@ -111,14 +111,14 @@ def main():
                 # addition of gradients corresponds to a SUM in the objective, but
                 # instead of a SUM we want MEAN. Scale the loss here so it comes out right
                 loss = loss / grad_accum_steps
-                loss_accum += loss.detach()
+                step_loss += loss.detach()
                 if ddp:
                     model.require_backward_grad_sync = (
                         micro_step == grad_accum_steps - 1)
                 loss.backward()
 
         if ddp:
-            dist.all_reduce(loss_accum, op=dist.ReduceOp.AVG)
+            dist.all_reduce(step_loss, op=dist.ReduceOp.AVG)
 
         norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         # determine and set the learning rate for this iteration
@@ -140,6 +140,7 @@ def main():
     if ddp:
         destroy_process_group()
 
+# poetry run torchrun --standalone --nproc_per_node=2 src/main.py
 
 if __name__ == "__main__":
     main()

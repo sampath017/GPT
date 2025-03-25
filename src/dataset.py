@@ -73,9 +73,9 @@ class ShakespearDataset(Dataset):
             return x, y
         else:
             raise IndexError(
-                f"Index {idx} out of range for data length {len(self.tokens)} with block size {s.dataset["context_size"]}")
+                f"Index {idx} out of range for data length {len(self.tokens)} with block size {s.dataset['context_size']}")
 
-    def __repr__(self): return f"Dataset({s.dataset["context_size"]=})"
+    def __repr__(self): return f"Dataset({s.dataset['context_size']=})"
 
 
 def load_tokens(filename):

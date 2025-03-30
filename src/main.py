@@ -19,28 +19,23 @@ torch.manual_seed(0)
 if torch.cuda.is_available():
     torch.cuda.manual_seed(0)
 
-max_lr = 6e-4
-min_lr = max_lr * 0.1
-warmup_steps = 715
-max_steps = 19073
-
 
 def get_lr(it):
     # 1) linear warmup for warmup_iters steps
-    if it < warmup_steps:
-        return max_lr * (it+1) / warmup_steps
+    if it < s.warmup_steps:
+        return s.max_lr * (it+1) / s.warmup_steps
 
     # 2) if it > lr_decay_iters, return min learning rate
-    if it > max_steps:
-        return min_lr
+    if it > s.max_steps:
+        return s.min_lr
 
     # 3) in between, use cosine decay down to min learning rate
-    decay_ratio = (it - warmup_steps) / (max_steps - warmup_steps)
+    decay_ratio = (it - s.warmup_steps) / (s.max_steps - s.warmup_steps)
     assert 0 <= decay_ratio <= 1
     # coeff starts at 1 and goes to 0
     coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))
 
-    return min_lr + coeff * (max_lr - min_lr)
+    return s.min_lr + coeff * (s.max_lr - s.min_lr)
 
 
 ddp = int(os.environ.get('RANK', -1)) != -1  # is this a ddp run?
@@ -71,7 +66,8 @@ else:
 # create model
 model = GPT(device, master_process)
 model.to(device)
-model = torch.compile(model)
+if device == "cuda":
+    model = torch.compile(model)
 if ddp:
     model = DDP(model, device_ids=[ddp_rank])
 raw_model = model.module if ddp else model
@@ -88,15 +84,17 @@ optimizer = raw_model.configure_optimizers(
 
 assert s.dataset["total_batch_size"] % (s.dataset["batch_size"] * s.dataset["context_size"]
                                         * ddp_world_size) == 0, "make sure total_batch_size is divisible by B * T * ddp_world_size"
+
 grad_accum_steps = s.dataset["total_batch_size"] // (
     s.dataset["batch_size"] * s.dataset["context_size"] * ddp_world_size)
+
 if master_process:
     print(f"total desired batch size: {s.dataset['total_batch_size']}")
     print(f"=> calculated gradient accumulation steps: {grad_accum_steps}")
 
 
 def main():
-    for step in range(max_steps):
+    for step in range(s.max_steps):
         t0 = time.time()
         optimizer.zero_grad()
         step_loss = 0.0
@@ -142,8 +140,8 @@ def main():
         destroy_process_group()
 
 # poetry run torchrun --standalone --nproc_per_node=2 src/main.py
+# poetry run python src/main.py
 
 
 if __name__ == "__main__":
     main()
-

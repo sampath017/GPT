@@ -1,3 +1,4 @@
+from transformers import GPT2LMHeadModel
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -45,27 +46,28 @@ class CausalSelfAttention(nn.Module):
 class FeedForward(nn.Module):
     def __init__(self):
         super().__init__()
-        self.ff = nn.Sequential(
-            nn.Linear(s.model["num_embds"], s.model["num_embds"]*4),
-            nn.GELU(),
-            nn.Linear(s.model["num_embds"]*4, s.model["num_embds"]),
-        )
+        self.c_fc = nn.Linear(s.model["num_embds"], s.model["num_embds"]*4)
+        self.gelu = nn.GELU()
+        self.c_proj = nn.Linear(s.model["num_embds"]*4, s.model["num_embds"])
 
     def forward(self, x):
-        return self.ff(x)
+        x = self.c_fc(x)
+        x = self.gelu(x)
+
+        return self.c_proj(x)
 
 
 class Block(nn.Module):
     def __init__(self):
         super().__init__()
-        self.ln1 = nn.LayerNorm(s.model["num_embds"])
-        self.attention_block = CausalSelfAttention()
-        self.ln2 = nn.LayerNorm(s.model["num_embds"])
-        self.ff = FeedForward()
+        self.ln_1 = nn.LayerNorm(s.model["num_embds"])
+        self.attn = CausalSelfAttention()
+        self.ln_2 = nn.LayerNorm(s.model["num_embds"])
+        self.mlp = FeedForward()
 
     def forward(self, x):
-        x = x + self.attention_block(self.ln1(x))
-        logits = x + self.ff(self.ln2(x))
+        x = x + self.attn(self.ln_1(x))
+        logits = x + self.mlp(self.ln_2(x))
 
         return logits
 
@@ -76,30 +78,36 @@ class GPT(nn.Module):
         self.master_process = master_process
         self.device = device
         self.transformer = nn.ModuleDict(dict(
-            token_embedding_table=nn.Embedding(
-                s.dataset["vocab_size"], s.model["num_embds"]),
-            position_embedding_table=nn.Embedding(
-                s.dataset["context_size"], s.model["num_embds"]),
-            blocks=nn.ModuleList([Block()
-                                 for _ in range(s.model["num_blocks"])]),
-            ln=nn.LayerNorm(s.model["num_embds"])
+            wte=nn.Embedding(
+                s.dataset["vocab_size"],
+                s.model["num_embds"]
+            ),
+            wpe=nn.Embedding(
+                s.dataset["context_size"],
+                s.model["num_embds"]
+            ),
+            h=nn.ModuleList(
+                [Block() for _ in range(s.model["num_blocks"])]
+            ),
+            ln_f=nn.LayerNorm(s.model["num_embds"])
         ))
 
-        self.lm_head = nn.Linear(s.model["num_embds"], s.dataset["vocab_size"])
+        self.lm_head = nn.Linear(
+            s.model["num_embds"], s.dataset["vocab_size"], bias=False)
 
         # weight sharing scheme
-        self.transformer.token_embedding_table.weight = self.lm_head.weight
+        self.transformer.wte.weight = self.lm_head.weight
 
     def forward(self, x):
         _, T = x.shape
-        token_embds = self.transformer.token_embedding_table(x)
-        position_embds = self.transformer.position_embedding_table(
+        token_embds = self.transformer.wte(x)
+        position_embds = self.transformer.wpe(
             torch.arange(T, device=self.device))
 
         x = token_embds + position_embds
-        for block in self.transformer.blocks:
+        for block in self.transformer.h:
             x = block(x)
-        x = self.transformer.ln(x)
+        x = self.transformer.ln_f(x)
         logits = self.lm_head(x)
 
         return logits
@@ -132,3 +140,44 @@ class GPT(nn.Module):
             0.9, 0.95), eps=1e-8, fused=use_fused)
 
         return optimizer
+
+
+def from_pretrained(device, master_process=False):
+    """Loads pretrained GPT-2 model weights from huggingface"""
+    print(f"loading weights from pretrained gpt2")
+
+    model = GPT(device, master_process)
+    sd = model.state_dict()
+    sd_keys = sd.keys()
+    # discard this mask / buffer, not a param
+    sd_keys = [k for k in sd_keys if not k.endswith('.attn.bias')]
+
+    # init a huggingface/transformers model
+    model_hf = GPT2LMHeadModel.from_pretrained("gpt2")
+    sd_hf = model_hf.state_dict()
+
+    # copy while ensuring all of the parameters are aligned and match in names and shapes
+    sd_keys_hf = sd_hf.keys()
+    sd_keys_hf = [k for k in sd_keys_hf if not k.endswith(
+        # ignore these, just a buffer
+        '.attn.masked_bias') or k.endswith('.attn.bias')]
+
+    transposed = ['attn.c_attn.weight', 'attn.c_proj.weight',
+                  'mlp.c_fc.weight', 'mlp.c_proj.weight']
+    # basically the openai checkpoints use a "Conv1D" module, but we only want to use a vanilla Linear
+    # this means that we have to transpose these weights when we import them
+    assert len(sd_keys_hf) == len(
+        sd_keys), f"mismatched keys: {len(sd_keys_hf)} != {len(sd_keys)}"
+    for k in sd_keys_hf:
+        if any(k.endswith(w) for w in transposed):
+            # special treatment for the Conv1D weights we need to transpose
+            assert sd_hf[k].shape[::-1] == sd[k].shape
+            with torch.no_grad():
+                sd[k].copy_(sd_hf[k].t())
+        else:
+            # vanilla copy over the other parameters
+            assert sd_hf[k].shape == sd[k].shape
+            with torch.no_grad():
+                sd[k].copy_(sd_hf[k])
+
+    return model

@@ -1,0 +1,740 @@
+{
+	"info": {
+		"_postman_id": "05e29b31-c330-49fa-8448-04e4cbc05755",
+		"name": "Appointment",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Register",
+			"item": [
+				{
+					"name": "register patient 1",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n\r\n    \"username\": \"prema\",\r\n    \"password\": \"sagar123\",\r\n    \"appoRole\" : \"PATIENT\",\r\n    \"fullName\" :\"Prema Nakka\",\r\n    \"age\":24,\r\n    \"gender\": \"MALE\",\r\n    \"mobile\" :\"8374360178\",\r\n    \"email\" :\"prema@gmail.com\"\r\n\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:8080/api/appUser/register",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"appUser",
+								"register"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "register doctor",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n\r\n    \"username\": \"sagar\",\r\n    \"password\": \"sagar\",\r\n    \"appoRole\" : \"DOCTOR\",\r\n    \"fullName\" :\"Sagar Doctor\",\r\n    \"age\":35,\r\n    \"gender\": \"MALE\",\r\n    \"mobile\" :\"6303424564\",\r\n    \"email\" :\"sagar@gmail.com\"\r\n\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:8080/api/appUser/register",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"appUser",
+								"register"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "register admin",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n\r\n    \"username\": \"nagu\",\r\n    \"password\": \"nagu\",\r\n    \"appoRole\" : \"ADMIN\",\r\n    \"fullName\" :\"Nagu Tangella\",\r\n    \"age\":26,\r\n    \"gender\": \"MALE\",\r\n    \"mobile\" :\"7093084088\",\r\n    \"email\" :\"nagu@gmail.com\"\r\n\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:8080/api/appUser/register",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"appUser",
+								"register"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "login",
+			"item": [
+				{
+					"name": "patient 1",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"username\":\"prema\",\r\n    \"password\":\"sagar123\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:8080/api/appUser/login",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"appUser",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "doctor",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"username\":\"sagar\",\r\n    \"password\":\"sagar\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:8080/api/appUser/login",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"appUser",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "admin nagu",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"username\":\"nagu\",\r\n    \"password\":\"nagu\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:8080/api/appUser/login",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"appUser",
+								"login"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "get user details",
+			"item": [
+				{
+					"name": "patient",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:8080/api/user/get/1",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"user",
+								"get",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "doctor",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJwcmVtYSIsImlhdCI6MTc0NDYxMzU0NCwiZXhwIjoxNzQ1NTAyNTc3fQ.VY04iXThyQOobEoq4jBNnjQuLYqhIjddd6IMZgXaw6c",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:8080/api/user/get/1",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"user",
+								"get",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "admin",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:8080/api/user/get/1",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"user",
+								"get",
+								"1"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Appomitment Details",
+			"item": [
+				{
+					"name": "book by patient 1",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJwcmVtYSIsImlhdCI6MTc0NDYyMzQzNCwiZXhwIjoxNzQ1NTEyNDY3fQ.5LnQEf9u27LWfngQ9TKSxoxzNWrG-9y-ETHPXmYdYSg",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"doctorName\" : \"Sagar Doctor\",\r\n    \"appointmentDate\" :\"2025-05-01T10:30:20\" \r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:8080/api/patient/book/appointment",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"patient",
+								"book",
+								"appointment"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "book 2 by patient 1",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJwcmVtYSIsImlhdCI6MTc0NDYyMzQzNCwiZXhwIjoxNzQ1NTEyNDY3fQ.5LnQEf9u27LWfngQ9TKSxoxzNWrG-9y-ETHPXmYdYSg",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"doctorName\" : \"Mishra Doctor\",\r\n    \"appointmentDate\" :\"2025-05-11T10:30:20\" \r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:8080/api/patient/book/appointment",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"patient",
+								"book",
+								"appointment"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "book 3 by patient 1",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJwcmVtYSIsImlhdCI6MTc0NDYyMzQzNCwiZXhwIjoxNzQ1NTEyNDY3fQ.5LnQEf9u27LWfngQ9TKSxoxzNWrG-9y-ETHPXmYdYSg",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"doctorName\" : \"Sagar Doctor\",\r\n    \"appointmentDate\" :\"2026-05-01T10:30:20\" \r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:8080/api/patient/book/appointment",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"patient",
+								"book",
+								"appointment"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "book 4 by patient 1",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJwcmVtYSIsImlhdCI6MTc0NDU1NDE1NiwiZXhwIjoxNzQ1NDQzMTg4fQ.dOjzHLBOoYd3On6uttBAf5vVO328CSwfnruvLGp7riY",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"doctorName\" : \"Prema Doctor\",\r\n    \"appointmentDate\" :\"2025-05-01T10:30:20\" \r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:8080/api/patient/book/appointment",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"patient",
+								"book",
+								"appointment"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "book 5 by patient 1",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJwcmVtYSIsImlhdCI6MTc0NDU1NDE1NiwiZXhwIjoxNzQ1NDQzMTg4fQ.dOjzHLBOoYd3On6uttBAf5vVO328CSwfnruvLGp7riY",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"doctorName\" : \"Doma Doctor\",\r\n    \"appointmentDate\" :\"2025-05-01T10:30:20\" \r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:8080/api/patient/book/appointment",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"patient",
+								"book",
+								"appointment"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "get by Id",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJwcmVtYSIsImlhdCI6MTc0NDYxNDI2MiwiZXhwIjoxNzQ1NTAzMjk1fQ.meLpY9QUyU-eg1MTgm_kbVwBQwLq-NrOpiECOWGo2cM",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:8080/api/appintment/get/3",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"appintment",
+								"get",
+								"3"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update status by Doctor 1",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJzYWdhciIsImlhdCI6MTc0NDYyMzUxMiwiZXhwIjoxNzQ1NTEyNTQ1fQ.rOk5vAZnXAGzOioLr5ddWj4tWllaHfhJyecVWhL_cks",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"status\" : \"CONFIRMED\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "localhost:8080/api/appointments/1/status",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"appointments",
+								"1",
+								"status"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update status by admin",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJuYWd1IiwiaWF0IjoxNzQ0NjExMDEzLCJleHAiOjE3NDU1MDAwNDV9.Z9i5-h0zE1vLWfEye5Sio1d8cxjzWUoGXo0QOJ6tsA4",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"status\" : \"COMPLETED\"\r\n}"
+						},
+						"url": {
+							"raw": "localhost:8080/api/appointments/1/status",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"appointments",
+								"1",
+								"status"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "appointments for doctor - doctor",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJzYWdhciIsImlhdCI6MTc0NDYyMzUxMiwiZXhwIjoxNzQ1NTEyNTQ1fQ.rOk5vAZnXAGzOioLr5ddWj4tWllaHfhJyecVWhL_cks",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:8080/api/doctors/2/appointments",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"doctors",
+								"2",
+								"appointments"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "appointments for patient - patietn 1",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJwcmVtYSIsImlhdCI6MTc0NDYxNDYzNCwiZXhwIjoxNzQ1NTAzNjY2fQ.TyxwK920yYfO1YAvRBZEbuvYzhSYoNt5tcqwOYlj10Y",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:8080/api/patients/1/appointments",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"patients",
+								"1",
+								"appointments"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "dashboard",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJuYWd1IiwiaWF0IjoxNzQ0NjE2NTY2LCJleHAiOjE3NDU1MDU1OTh9.6P1o-Anb61nKCOQDeFpx9cXahQSWBZNGLKw8yYYQn3A",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "localhost:8080/api/admin/dashboard",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"admin",
+								"dashboard"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "New Request",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJzYWdhciIsImlhdCI6MTc0NDYxNjU2MywiZXhwIjoxNzQ1NTA1NTk2fQ.KUCXDf33TLURW8W_WyFvcQQ-yAmcNHCdIsdAq7krAco",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "localhost:8080/api/appointments/delete/3",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"api",
+								"appointments",
+								"delete",
+								"3"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"auth": {
+				"type": "bearer"
+			},
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"type": "text/javascript",
+						"exec": [
+							""
+						]
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"exec": [
+							""
+						]
+					}
+				}
+			]
+		}
+	]
+}

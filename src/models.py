@@ -100,6 +100,7 @@ class GPT(nn.Module):
 
     def forward(self, x):
         _, T = x.shape
+        self.transformer.to(self.device)
         token_embds = self.transformer.wte(x)
         position_embds = self.transformer.wpe(
             torch.arange(T, device=self.device))
@@ -141,6 +142,26 @@ class GPT(nn.Module):
 
         return optimizer
 
+def generate(model, block_size, input_tokens: torch.Tensor, max_new_tokens: int) -> torch.Tensor:
+    """
+    Generates new tokens from the model.
+
+    Args:
+        input_tokens: The initial input tokens.
+        max_new_tokens: The maximum number of tokens to generate.
+
+    Returns:
+        The generated tokens.
+    """
+    for _ in range(max_new_tokens):
+        cropped_input = input_tokens[:, -block_size:]
+        logits = model(cropped_input)
+        logits = logits[:, -1, :]
+        probs = F.softmax(logits, dim=-1)
+        idx_next = torch.multinomial(probs, num_samples=1)
+        input_tokens = torch.cat((input_tokens, idx_next), dim=1)
+
+    return input_tokens
 
 def from_pretrained(device, new_vocab_size, master_process=False):
     """Loads pretrained GPT-2 model weights from huggingface"""

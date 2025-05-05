@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# checkpoints
+checkpoints/
+
 # tokens
 data/tokens.*
 

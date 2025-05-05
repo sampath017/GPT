@@ -142,7 +142,7 @@ class GPT(nn.Module):
         return optimizer
 
 
-def from_pretrained(device, master_process=False):
+def from_pretrained(device, new_vocab_size, master_process=False):
     """Loads pretrained GPT-2 model weights from huggingface"""
     print(f"loading weights from pretrained gpt2")
 
@@ -179,5 +179,26 @@ def from_pretrained(device, master_process=False):
             assert sd_hf[k].shape == sd[k].shape
             with torch.no_grad():
                 sd[k].copy_(sd_hf[k])
+
+    if new_vocab_size:
+        old_vocab_size = s.dataset["vocab_size"]
+        if new_vocab_size - old_vocab_size > 0:
+            print(f"Resizing token embeddings: {old_vocab_size} → {new_vocab_size}")
+
+            with torch.no_grad():
+                # Expand wte (word token embeddings)
+                new_wte = torch.nn.Embedding(new_vocab_size, s.model["num_embds"])
+                new_wte.weight[:old_vocab_size] = model.transformer.wte.weight
+                nn.init.normal_(new_wte.weight[old_vocab_size:], mean=0.0, std=0.02)  # initialize new rows
+                model.transformer.wte = new_wte
+
+                # Expand lm_head (output layer)
+                new_lm_head = torch.nn.Linear(s.model["num_embds"], new_vocab_size, bias=False)
+                new_lm_head.weight[:old_vocab_size] = model.lm_head.weight
+                nn.init.normal_(new_lm_head.weight[old_vocab_size:], mean=0.0, std=0.02)
+                model.lm_head = new_lm_head
+
+                # Re-tie weights 
+                model.transformer.wte.weight = model.lm_head.weight
 
     return model

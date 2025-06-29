@@ -9,9 +9,9 @@ project_name = "GPT"
 
 model = {
     "name": "GPT",
-    "num_embds": 768,
-    "num_heads": 12,
-    "num_blocks": 12,
+    "num_embds": 96,
+    "num_heads": 4,
+    "num_blocks": 4,
 }
 
 
@@ -20,6 +20,7 @@ min_lr = max_lr * 0.1
 warmup_steps = 715
 # max_steps = 19073
 max_steps = 2
+max_epochs = 10
 
 dataset = {
     "name": "Fineweb1B",

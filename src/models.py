@@ -1,4 +1,3 @@
-from transformers import GPT2LMHeadModel
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -140,44 +139,3 @@ class GPT(nn.Module):
             0.9, 0.95), eps=1e-8, fused=use_fused)
 
         return optimizer
-
-
-def from_pretrained(device, master_process=False):
-    """Loads pretrained GPT-2 model weights from huggingface"""
-    print(f"loading weights from pretrained gpt2")
-
-    model = GPT(device, master_process)
-    sd = model.state_dict()
-    sd_keys = sd.keys()
-    # discard this mask / buffer, not a param
-    sd_keys = [k for k in sd_keys if not k.endswith('.attn.bias')]
-
-    # init a huggingface/transformers model
-    model_hf = GPT2LMHeadModel.from_pretrained("gpt2")
-    sd_hf = model_hf.state_dict()
-
-    # copy while ensuring all of the parameters are aligned and match in names and shapes
-    sd_keys_hf = sd_hf.keys()
-    sd_keys_hf = [k for k in sd_keys_hf if not k.endswith(
-        # ignore these, just a buffer
-        '.attn.masked_bias') or k.endswith('.attn.bias')]
-
-    transposed = ['attn.c_attn.weight', 'attn.c_proj.weight',
-                  'mlp.c_fc.weight', 'mlp.c_proj.weight']
-    # basically the openai checkpoints use a "Conv1D" module, but we only want to use a vanilla Linear
-    # this means that we have to transpose these weights when we import them
-    assert len(sd_keys_hf) == len(
-        sd_keys), f"mismatched keys: {len(sd_keys_hf)} != {len(sd_keys)}"
-    for k in sd_keys_hf:
-        if any(k.endswith(w) for w in transposed):
-            # special treatment for the Conv1D weights we need to transpose
-            assert sd_hf[k].shape[::-1] == sd[k].shape
-            with torch.no_grad():
-                sd[k].copy_(sd_hf[k].t())
-        else:
-            # vanilla copy over the other parameters
-            assert sd_hf[k].shape == sd[k].shape
-            with torch.no_grad():
-                sd[k].copy_(sd_hf[k])
-
-    return model

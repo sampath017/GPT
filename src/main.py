@@ -79,7 +79,7 @@ if master_process:
 train_loader = DataLoaderLite(s.data_path, process_rank=ddp_rank,
                               num_processes=ddp_world_size, split="train", master_process=master_process)
 
-optimizer = raw_model.configure_optimizers(
+optimizer = raw_model.configure_optimizers(  # type: ignore
     weight_decay=0.1, learning_rate=6e-4, device=device)
 
 assert s.dataset["total_batch_size"] % (s.dataset["batch_size"] * s.dataset["context_size"]

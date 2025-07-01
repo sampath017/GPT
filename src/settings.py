@@ -1,7 +1,7 @@
 from pathlib import Path
 
 # data_path = Path("/home/jl_fs/shards")
-data_path = Path("../data/edu_fineweb1B/shards")
+data_path = Path("../data/sample10_data/shards")
 logs_path = Path("../logs")
 logs_path.mkdir(exist_ok=True)
 

@@ -9,40 +9,37 @@ num_embds = s.config["model"]["num_embds"]
 head_size = s.config["model"]["head_size"]
 num_heads = s.config["model"]["num_heads"]
 num_blocks = s.config["model"]["num_blocks"]
+dropout = s.config["model"]["dropout"]
+batch_size = s.config["dataset"]["batch_size"]
 
 
-class Head(nn.Module):
+class CasualSelfAttention(nn.Module):
     def __init__(self):
         super().__init__()
-        self.keys = nn.Linear(num_embds, head_size, bias=False)
-        self.queries = nn.Linear(num_embds, head_size, bias=False)
-        self.values = nn.Linear(num_embds, head_size, bias=False)
+        self.c_attn = nn.Linear(num_embds, num_embds * 3, bias=False)
+        self.proj = nn.Linear(num_embds, num_embds)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, embds):
+        k, q, v = self.c_attn(embds).chunk(3, dim=-1)
+
+        k = k.reshape(batch_size, block_size, num_heads,
+                      head_size).transpose(1, 2)
+        q = q.reshape(batch_size, block_size, num_heads,
+                      head_size).transpose(1, 2)
+        v = v.reshape(batch_size, block_size, num_heads,
+                      head_size).transpose(1, 2)
 
         tril = torch.tril(torch.ones(block_size, block_size))
-        self.register_buffer("tril", tril)
-
-    def forward(self, embds):
-        B, T, C = embds.shape
-        q = self.queries(embds)
-        k = self.keys(embds)
-        v = self.values(embds)
-
-        weights = q @ k.transpose(-2, -1) * (C ** -0.5)
-        weights = weights.masked_fill(self.tril[:T, :T] == 0, float('-inf'))
+        weights = q @ k.transpose(-2, -1) * (num_embds ** -0.5)
+        weights = weights.masked_fill(
+            tril[:block_size, :block_size] == 0, float('-inf'))
         weights = F.softmax(weights, dim=-1)
+        affinities = weights @ v                      # [B, nh, block_size, hs]
+        affinities = affinities.transpose(1, 2).reshape(
+            batch_size, block_size, num_embds)
 
-        out = weights @ v
-
-        return out
-
-
-class MultiHeadAttention(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.heads = nn.ModuleList([Head() for _ in range(num_heads)])
-
-    def forward(self, embds):
-        return torch.cat([head(embds) for head in self.heads], dim=-1)
+        return self.dropout(self.proj(affinities))
 
 
 class FeedForward(nn.Module):
@@ -52,7 +49,8 @@ class FeedForward(nn.Module):
         self.ff = nn.Sequential(
             nn.Linear(num_embds, num_embds*4),
             nn.ReLU(),
-            nn.Linear(num_embds*4, num_embds)
+            nn.Linear(num_embds*4, num_embds),
+            nn.Dropout(dropout),
         )
 
     def forward(self, affinities):
@@ -62,7 +60,7 @@ class FeedForward(nn.Module):
 class Block(nn.Module):
     def __init__(self):
         super().__init__()
-        self.sa = MultiHeadAttention()
+        self.sa = CasualSelfAttention()
         self.ff = FeedForward()
         self.ln1 = nn.LayerNorm(num_embds)
         self.ln2 = nn.LayerNorm(num_embds)
@@ -80,6 +78,7 @@ class GPT(nn.Module):
         self.token_embedding_table = nn.Embedding(vocab_size, num_embds)
         self.position_embedding_table = nn.Embedding(block_size, num_embds)
         self.blocks = nn.Sequential(*[Block() for _ in range(num_blocks)])
+        self.ln_f = nn.LayerNorm(num_embds)
         self.lm_head = nn.Linear(head_size*num_heads, vocab_size)
 
     def forward(self, x, y=None):
@@ -87,10 +86,10 @@ class GPT(nn.Module):
 
         token_embds = self.token_embedding_table(x)  # (B, T, num_embds)
         pos_embds = self.position_embedding_table(
-            torch.arange(T))  # (T, num_embds)
+            torch.arange(T, device=s.config["device"]))  # (T, num_embds)
         embds = token_embds + pos_embds  # (B, T, num_embds)
 
-        affinities = self.blocks(embds)
+        affinities = self.ln_f(self.blocks(embds))
         logits = self.lm_head(affinities)  # (B, T, vocab_size)
 
         loss = None

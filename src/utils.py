@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+import time
 
 
 class Trainer:
@@ -9,6 +10,10 @@ class Trainer:
         self.dataloader = dataloader
 
     def train_step(self):
+        # Ensure previous CUDA ops are done
+        torch.cuda.synchronize()
+        start_time = time.time()
+
         self.model.train()
         xb, yb = self.dataloader.get_batch_optimized("train")
         _, loss = self.model(xb, yb)
@@ -16,7 +21,12 @@ class Trainer:
         loss.backward()
         self.optimizer.step()
 
-        return loss.item()
+        # Sync again to wait for CUDA ops to finish
+        torch.cuda.synchronize()
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+
+        return loss.item(), elapsed_time
 
     def val_step(self):
         self.model.eval()

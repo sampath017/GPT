@@ -28,7 +28,7 @@ config = {
         "name": "tiny_shakespear",
         "vocab_size": enc.n_vocab,
         "block_size": 1024,
-        "batch_size": 128,
+        "batch_size": 32,
         "train_split": 0.7,
         "val_split": 0.3
     }

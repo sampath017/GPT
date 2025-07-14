@@ -50,4 +50,4 @@ cd /workspace
 rm -rf GPT
 git clone https://github.com/sampath017/GPT.git
 cd GPT
-poetry install
+uv sync

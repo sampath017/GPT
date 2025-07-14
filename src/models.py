@@ -30,7 +30,7 @@ class CasualSelfAttention(nn.Module):
         v = v.reshape(batch_size, block_size, num_heads,
                       head_size).transpose(1, 2)
 
-        tril = torch.tril(torch.ones(block_size, block_size))
+        tril = torch.tril(torch.ones(block_size, block_size, device=s.device))
         weights = q @ k.transpose(-2, -1) * (num_embds ** -0.5)
         weights = weights.masked_fill(
             tril[:block_size, :block_size] == 0, float('-inf'))

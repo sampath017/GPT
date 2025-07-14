@@ -34,13 +34,9 @@ apt-get update
 apt-get install -y software-properties-common
 add-apt-repository ppa:deadsnakes/ppa
 apt-get update
-apt-get install python3.12 nvtop htop -y
-apt-get remove python3 -y
-apt-get install -y python3.12-dev
+apt-get install htop git nvtop python3-pip
 
-pip install poetry
-export PATH="$HOME/.local/bin:$PATH"
-poetry config virtualenvs.in-project true
+pip install uv
 
 git config --global user.email "118274231+sampath017@users.noreply.github.com"
 git config --global user.name "sampath"

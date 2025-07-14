@@ -1,63 +1,35 @@
 from pathlib import Path
 import torch
+import tiktoken
 
-# data_path = Path("/home/jl_fs/shards")
 data_path = Path("../data/shakespear.txt")
+tokens_path = data_path.parent / "tokens.pt"
+
 logs_path = Path("../logs")
 logs_path.mkdir(exist_ok=True)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+enc = tiktoken.get_encoding("gpt2")
 
-debug = True
-
-if not debug:
-    config = {
-        "project_name": "GPT-mini",
-        "device": device,
-        "model": {
-            "name": "GPT",
-            "num_embds": 384,
-            "num_heads": 8,
-            "head_size": 48,
-            "num_blocks": 12,
-            "dropout": 0.2
-        },
-        "training": {
-            "max_steps": 5000,
-            "eval_interval": 100,
-            "eval_steps": 200
-        },
-        "dataset": {
-            "name": "tiny_shakespear",
-            "vocab_size": 65,
-            "block_size": 256,
-            "batch_size": 128,
-            "train_split": 0.7,
-            "val_split": 0.3
-        }
+config = {
+    "project_name": "GPT-mini",
+    "device": device,
+    "model": {
+        "name": "GPT",
+        "num_embds": 768,
+        "num_heads": 12,
+        "head_size": 64,
+        "num_blocks": 12,
+        "dropout": 0.2
+    },
+    "training": {
+        "max_steps": 5000,
+    },
+    "dataset": {
+        "name": "tiny_shakespear",
+        "vocab_size": enc.n_vocab,
+        "block_size": 1024,
+        "batch_size": 128,
+        "train_split": 0.7,
+        "val_split": 0.3
     }
-else:
-    config = {
-        "project_name": "GPT-mini",
-        "device": device,
-        "model": {
-            "name": "GPT",
-            "num_embds": 32,
-            "num_heads": 4,
-            "head_size": 8,
-            "num_blocks": 2,
-            "dropout": 0.2
-        },
-        "training": {
-            "max_steps": 10,
-            "eval_interval": 2,
-            "eval_steps": 5
-        },
-        "dataset": {
-            "name": "tiny_shakespear",
-            "vocab_size": 65,
-            "block_size": 8,
-            "batch_size": 32,
-            "train_split": 0.7,
-            "val_split": 0.3
-        }
-    }
+}

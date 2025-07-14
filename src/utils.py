@@ -2,45 +2,78 @@ import torch
 import torch.nn.functional as F
 
 
-def count_parameters(model):
-    trainable_params = sum(p.numel()
-                           for p in model.parameters() if p.requires_grad)
-    non_trainable_params = sum(p.numel()
-                               for p in model.parameters() if not p.requires_grad)
+class Trainer:
+    def __init__(self, model, optimizer, dataloader):
+        self.model = model
+        self.optimizer = optimizer
+        self.dataloader = dataloader
 
-    def format_number(num):
-        if num >= 1_000_000_000:
-            return f"{num / 1_000_000_000:.2f}B"
-        elif num >= 1_000_000:
-            return f"{num / 1_000_000:.2f}M"
-        elif num >= 1_000:
-            return f"{num / 1_000:.2f}K"
-        else:
-            return str(num)
+    def train_step(self):
+        self.model.train()
+        xb, yb = self.dataloader.get_batch_optimized("train")
+        _, loss = self.model(xb, yb)
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
 
-    print(f"Trainable parameters: {format_number(trainable_params)}")
-    print(f"Non-trainable parameters: {format_number(non_trainable_params)}")
+        return loss.item()
+
+    def val_step(self):
+        self.model.eval()
+        with torch.no_grad():
+            xb, yb = self.dataloader.get_batch_optimized("val")
+            _, loss = self.model(xb, yb)
+
+        return loss.item()
 
 
-def model_size(model):
-    param_size = sum(param.nelement() * param.element_size()
-                     for param in model.parameters())
-    buffer_size = sum(buffer.nelement() * buffer.element_size()
-                      for buffer in model.buffers())
-    total_size = param_size + buffer_size
+class ModelSummary:
+    def __init__(self, model):
+        self.model = model
 
-    def format_size(size_bytes):
-        if size_bytes >= 1_073_741_824:  # 1024^3
-            return f"{size_bytes / 1_073_741_824:.2f} GB"
-        elif size_bytes >= 1_048_576:  # 1024^2
-            return f"{size_bytes / 1_048_576:.2f} MB"
-        elif size_bytes >= 1024:  # 1024^1
-            return f"{size_bytes / 1024:.2f} KB"
-        else:
-            return f"{size_bytes} bytes"
+    def count_parameters(self):
+        trainable_params = sum(p.numel()
+                               for p in self.model.parameters() if p.requires_grad)
+        non_trainable_params = sum(p.numel()
+                                   for p in self.model.parameters() if not p.requires_grad)
 
-    size_all = format_size(total_size)
-    print(f"Model size: {size_all}")
+        def format_number(num):
+            if num >= 1_000_000_000:
+                return f"{num / 1_000_000_000:.2f}B"
+            elif num >= 1_000_000:
+                return f"{num / 1_000_000:.2f}M"
+            elif num >= 1_000:
+                return f"{num / 1_000:.2f}K"
+            else:
+                return str(num)
+
+        print(f"Trainable parameters: {format_number(trainable_params)}")
+        print(
+            f"Non-trainable parameters: {format_number(non_trainable_params)}")
+
+    def model_size(self):
+        param_size = sum(param.nelement() * param.element_size()
+                         for param in self.model.parameters())
+        buffer_size = sum(buffer.nelement() * buffer.element_size()
+                          for buffer in self.model.buffers())
+        total_size = param_size + buffer_size
+
+        def format_size(size_bytes):
+            if size_bytes >= 1_073_741_824:  # 1024^3
+                return f"{size_bytes / 1_073_741_824:.2f} GB"
+            elif size_bytes >= 1_048_576:  # 1024^2
+                return f"{size_bytes / 1_048_576:.2f} MB"
+            elif size_bytes >= 1024:  # 1024^1
+                return f"{size_bytes / 1024:.2f} KB"
+            else:
+                return f"{size_bytes} bytes"
+
+        size_all = format_size(total_size)
+        print(f"Model size: {size_all}")
+
+    def summary(self):
+        self.model_size()
+        self.count_parameters()
 
 
 @torch.no_grad()

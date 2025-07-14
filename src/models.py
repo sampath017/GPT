@@ -16,12 +16,12 @@ batch_size = s.config["dataset"]["batch_size"]
 class CasualSelfAttention(nn.Module):
     def __init__(self):
         super().__init__()
-        self.c_attn = nn.Linear(num_embds, num_embds * 3, bias=False)
+        self.qkv = nn.Linear(num_embds, num_embds * 3, bias=False)
         self.proj = nn.Linear(num_embds, num_embds)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, embds):
-        k, q, v = self.c_attn(embds).chunk(3, dim=-1)
+        k, q, v = self.qkv(embds).chunk(3, dim=-1)
 
         k = k.reshape(batch_size, block_size, num_heads,
                       head_size).transpose(1, 2)
@@ -48,7 +48,7 @@ class FeedForward(nn.Module):
 
         self.ff = nn.Sequential(
             nn.Linear(num_embds, num_embds*4),
-            nn.ReLU(),
+            nn.GELU(),
             nn.Linear(num_embds*4, num_embds),
             nn.Dropout(dropout),
         )
@@ -75,21 +75,26 @@ class Block(nn.Module):
 class GPT(nn.Module):
     def __init__(self):
         super().__init__()
-        self.token_embedding_table = nn.Embedding(vocab_size, num_embds)
-        self.position_embedding_table = nn.Embedding(block_size, num_embds)
-        self.blocks = nn.Sequential(*[Block() for _ in range(num_blocks)])
-        self.ln_f = nn.LayerNorm(num_embds)
+        self.transformer = nn.ModuleDict(dict(
+            token_embedding_table=nn.Embedding(vocab_size, num_embds),
+            position_embedding_table=nn.Embedding(block_size, num_embds),
+            blocks=nn.Sequential(*[Block() for _ in range(num_blocks)]),
+            ln_f=nn.LayerNorm(num_embds)
+        ))
         self.lm_head = nn.Linear(head_size*num_heads, vocab_size)
 
     def forward(self, x, y=None):
         B, T = x.shape
 
-        token_embds = self.token_embedding_table(x)  # (B, T, num_embds)
-        pos_embds = self.position_embedding_table(
-            torch.arange(T, device=s.config["device"]))  # (T, num_embds)
+        token_embds = self.transformer.token_embedding_table(
+            x)  # type: ignore # (B, T, num_embds)
+        pos_embds = self.transformer.position_embedding_table(
+            # type: ignore # (T, num_embds)
+            torch.arange(T, device=s.config["device"]))
         embds = token_embds + pos_embds  # (B, T, num_embds)
 
-        affinities = self.ln_f(self.blocks(embds))
+        affinities = self.transformer.ln_f(
+            self.transformer.blocks(embds))  # type: ignore
         logits = self.lm_head(affinities)  # (B, T, vocab_size)
 
         loss = None

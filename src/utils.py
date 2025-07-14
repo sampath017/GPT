@@ -1,13 +1,15 @@
 import torch
 import torch.nn.functional as F
 import time
+import settings as s
 
 
 class Trainer:
-    def __init__(self, model, optimizer, dataloader):
+    def __init__(self, model, optimizer, dataloaders):
         self.model = model
         self.optimizer = optimizer
-        self.dataloader = dataloader
+        self.train_dataloader = dataloaders["train_dataloader"]
+        self.val_dataloader = dataloaders["val_dataloader"]
 
     def train_step(self):
         # Ensure previous CUDA ops are done
@@ -15,8 +17,10 @@ class Trainer:
         start_time = time.time()
 
         self.model.train()
-        xb, yb = self.dataloader.get_batch_optimized("train")
-        _, loss = self.model(xb, yb)
+        xb, yb = self.train_dataloader.next_batch()
+
+        with torch.autocast(device_type=s.device, dtype=torch.bfloat16):
+            _, loss = self.model(xb, yb)
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
@@ -31,7 +35,7 @@ class Trainer:
     def val_step(self):
         self.model.eval()
         with torch.no_grad():
-            xb, yb = self.dataloader.get_batch_optimized("val")
+            xb, yb = self.val_dataloader.next_batch()
             _, loss = self.model(xb, yb)
 
         return loss.item()

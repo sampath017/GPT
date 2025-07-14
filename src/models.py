@@ -13,33 +13,30 @@ dropout = s.config["model"]["dropout"]
 batch_size = s.config["dataset"]["batch_size"]
 
 
-class CasualSelfAttention(nn.Module):
+class CausalSelfAttention(nn.Module):
     def __init__(self):
         super().__init__()
-        self.qkv = nn.Linear(num_embds, num_embds * 3, bias=False)
-        self.proj = nn.Linear(num_embds, num_embds)
-        self.dropout = nn.Dropout(dropout)
+        self.c_attn = nn.Linear(num_embds, 3 * num_embds)
+        self.c_proj = nn.Linear(num_embds, num_embds)
 
     def forward(self, embds):
-        k, q, v = self.qkv(embds).chunk(3, dim=-1)
+        qkv = self.c_attn(embds)
+        q, k, v = qkv.split(num_embds, dim=2)
+        k = k.view(batch_size, block_size, num_heads,
+                   head_size).transpose(1, 2)
+        q = q.view(batch_size, block_size, num_heads,
+                   head_size).transpose(1, 2)
+        v = v.view(batch_size, block_size, num_heads,
+                   head_size).transpose(1, 2)
 
-        k = k.reshape(batch_size, block_size, num_heads,
-                      head_size).transpose(1, 2)
-        q = q.reshape(batch_size, block_size, num_heads,
-                      head_size).transpose(1, 2)
-        v = v.reshape(batch_size, block_size, num_heads,
-                      head_size).transpose(1, 2)
+        y = F.scaled_dot_product_attention(
+            q, k, v, is_causal=True)  # flash attention
 
-        tril = torch.tril(torch.ones(block_size, block_size, device=s.device))
-        weights = q @ k.transpose(-2, -1) * (num_embds ** -0.5)
-        weights = weights.masked_fill(
-            tril[:block_size, :block_size] == 0, float('-inf'))
-        weights = F.softmax(weights, dim=-1)
-        affinities = weights @ v                      # [B, nh, block_size, hs]
-        affinities = affinities.transpose(1, 2).reshape(
-            batch_size, block_size, num_embds)
-
-        return self.dropout(self.proj(affinities))
+        # re-assemble all head outputs side by side
+        y = y.transpose(1, 2).reshape(batch_size, block_size, num_embds)
+        # output projection
+        y = self.c_proj(y)
+        return y
 
 
 class FeedForward(nn.Module):
@@ -60,7 +57,7 @@ class FeedForward(nn.Module):
 class Block(nn.Module):
     def __init__(self):
         super().__init__()
-        self.sa = CasualSelfAttention()
+        self.sa = CausalSelfAttention()
         self.ff = FeedForward()
         self.ln1 = nn.LayerNorm(num_embds)
         self.ln2 = nn.LayerNorm(num_embds)
@@ -82,6 +79,9 @@ class GPT(nn.Module):
             ln_f=nn.LayerNorm(num_embds)
         ))
         self.lm_head = nn.Linear(head_size*num_heads, vocab_size)
+
+        # weight sharing scheme
+        self.transformer.token_embedding_table.weight = self.lm_head.weight
 
     def forward(self, x, y=None):
         B, T = x.shape

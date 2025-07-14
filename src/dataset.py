@@ -4,7 +4,7 @@ import pickle
 import torch
 
 
-class DataLoaderLite:
+class DatasetLite:
     def __init__(self):
         self.get_tokens()
 
@@ -24,20 +24,32 @@ class DataLoaderLite:
                 tokens = pickle.load(f)
                 print(f"Loaded {len(tokens)} tokens from disk")
 
-        tokens = torch.tensor(tokens, dtype=torch.long)
-        train_split = int(len(tokens)*s.config["dataset"]["train_split"])
-        self.train_data = tokens[:train_split]
-        self.val_data = tokens[train_split:]
+        self.tokens = torch.tensor(tokens, dtype=torch.long)
 
-    def get_batch_optimized(self, split):
-        data = self.train_data if split == "train" else self.val_data
-        idx = torch.randint(0, len(
-            data) - s.config["dataset"]["block_size"], (s.config["dataset"]["batch_size"],))
 
-        offsets = torch.arange(s.config["dataset"]["block_size"]).unsqueeze(0)
-        positions = idx.unsqueeze(1) + offsets
+class DataLoaderLite:
+    def __init__(self, dataset, split="train"):
+        self.dataset = dataset
+        self.split = split
 
-        x = data[positions].to(s.config["device"])
-        y = data[positions + 1].to(s.config["device"])
+        self.current_position = 0
+        train_split = int(len(self.dataset.tokens) *
+                          s.config["dataset"]["train_split"])
+        train_data = self.dataset.tokens[:train_split]
+        val_data = self.dataset.tokens[train_split:]
+
+        self.tokens = train_data if self.split == "train" else val_data
+
+    def next_batch(self):
+        B, T = s.config["dataset"]["batch_size"], s.config["dataset"]["block_size"]
+        buf = self.tokens[self.current_position: self.current_position + B*T + 1]
+        x = (buf[:-1]).reshape(B, T)
+        y = (buf[1:]).reshape(B, T)
+
+        # advance the position in the tensor
+        self.current_position += B * T
+        # if loading the next batch would be out of bounds, reset
+        if self.current_position + (B * T + 1) > len(self.tokens):
+            self.current_position = 0
 
         return x, y

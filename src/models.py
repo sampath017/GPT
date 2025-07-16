@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import settings as s
+from utils import ModelSummary
 
 vocab_size = s.config["dataset"]["vocab_size"]
 block_size = s.config["dataset"]["block_size"]
@@ -16,11 +17,11 @@ batch_size = s.config["dataset"]["batch_size"]
 class CausalSelfAttention(nn.Module):
     def __init__(self):
         super().__init__()
-        self.c_attn = nn.Linear(num_embds, 3 * num_embds)
-        self.c_proj = nn.Linear(num_embds, num_embds)
+        self.attn = nn.Linear(num_embds, 3 * num_embds)
+        self.proj = nn.Linear(num_embds, num_embds)
 
     def forward(self, embds):
-        qkv = self.c_attn(embds)
+        qkv = self.attn(embds)
         q, k, v = qkv.split(num_embds, dim=2)
         k = k.view(batch_size, block_size, num_heads,
                    head_size).transpose(1, 2)
@@ -29,14 +30,16 @@ class CausalSelfAttention(nn.Module):
         v = v.view(batch_size, block_size, num_heads,
                    head_size).transpose(1, 2)
 
-        y = F.scaled_dot_product_attention(
-            q, k, v, is_causal=True)  # flash attention
+        # flash attention
+        affinities = F.scaled_dot_product_attention(
+            q, k, v, is_causal=True)
 
         # re-assemble all head outputs side by side
-        y = y.transpose(1, 2).reshape(batch_size, block_size, num_embds)
-        # output projection
-        y = self.c_proj(y)
-        return y
+        affinities = affinities.transpose(1, 2).reshape(
+            batch_size, block_size, num_embds)
+        affinities = self.proj(affinities)
+
+        return affinities
 
 
 class FeedForward(nn.Module):
@@ -57,14 +60,14 @@ class FeedForward(nn.Module):
 class Block(nn.Module):
     def __init__(self):
         super().__init__()
-        self.sa = CausalSelfAttention()
-        self.ff = FeedForward()
+        self.self_attention = CausalSelfAttention()
+        self.feed_forward = FeedForward()
         self.ln1 = nn.LayerNorm(num_embds)
         self.ln2 = nn.LayerNorm(num_embds)
 
     def forward(self, embds):
-        embds = embds + self.sa(self.ln1(embds))
-        affinities = embds + self.ff(self.ln2(embds))
+        embds = embds + self.self_attention(self.ln1(embds))
+        affinities = embds + self.feed_forward(self.ln2(embds))
 
         return affinities
 
@@ -103,3 +106,28 @@ class GPT(nn.Module):
             loss = F.cross_entropy(logits.view(B * T, C), y.view(B * T))
 
         return logits, loss
+
+    def configure_optimizers(self, weight_decay, lr, betas):
+        param_dict = {pn: p for pn, p in self.named_parameters()
+                      if p.requires_grad}
+
+        # create optim groups. Any parameters that is 2D will be weight decayed, otherwise no.
+        # i.e. all weight tensors in matmuls + embeddings decay, all biases and layernorms don't.
+        decay_params = [p for pn, p in param_dict.items() if p.dim() >= 2]
+        non_decay_params = [p for pn, p in param_dict.items() if p.dim() < 2]
+        optim_groups = [
+            {'params': decay_params, 'weight_decay': weight_decay},
+            {'params': non_decay_params, 'weight_decay': 0.0}
+        ]
+        num_decay_params = sum(p.numel() for p in decay_params)
+        num_non_decay_params = sum(p.numel() for p in non_decay_params)
+
+        print(
+            f"num decayed parameter tensors: {len(decay_params)}, with {ModelSummary.format_number(num_decay_params)} parameters")
+        print(
+            f"num non-decayed parameter tensors: {len(non_decay_params)}, with {ModelSummary.format_number(num_non_decay_params)} parameters")
+
+        optimizer = torch.optim.AdamW(
+            optim_groups, lr=lr, betas=betas, fused=True)
+
+        return optimizer

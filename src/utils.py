@@ -2,6 +2,7 @@ import torch
 import torch.nn.functional as F
 import time
 import settings as s
+import wandb
 
 
 class Trainer:
@@ -10,23 +11,41 @@ class Trainer:
         self.optimizer = optimizer
         self.train_dataloader = dataloaders["train_dataloader"]
         self.val_dataloader = dataloaders["val_dataloader"]
+        self.grad_accum_steps = s.config["dataset"]["total_batch_size"] / (
+            s.config["dataset"]["batch_size"]*s.config["dataset"]["block_size"])
+
+        print(
+            f"total desired batch size: {s.config["dataset"]["total_batch_size"]} tokens.")
+        print(
+            f"calculated gradient accumulation steps: {self.grad_accum_steps}")
 
     def train_step(self):
         # Ensure previous CUDA ops are done
-        torch.cuda.synchronize()
+        if s.device == "cuda":
+            torch.cuda.synchronize()
         start_time = time.time()
 
         self.model.train()
-        xb, yb = self.train_dataloader.next_batch()
 
-        with torch.autocast(device_type=s.device, dtype=torch.bfloat16):
-            _, loss = self.model(xb, yb)
         self.optimizer.zero_grad()
-        loss.backward()
+        loss_accum = 0.0
+        for _ in range(self.grad_accum_steps):
+            xb, yb = self.train_dataloader.next_batch()
+            with torch.autocast(device_type=s.device, dtype=torch.bfloat16):
+                _, loss = self.model(xb, yb)
+
+            loss = loss / self.grad_accum_steps
+            loss_accum += loss.detach()
+            loss.backward()
+
+        norm = torch.nn.utils.clip_grad_norm_(
+            self.model.parameters(), max_norm=s.config["training"]["max_grad_norm"])
+        wandb.log({"gradient_norm": norm})
         self.optimizer.step()
 
         # Sync again to wait for CUDA ops to finish
-        torch.cuda.synchronize()
+        if s.device == "cuda":
+            torch.cuda.synchronize()
         end_time = time.time()
         elapsed_time = end_time - start_time
 
@@ -45,25 +64,27 @@ class ModelSummary:
     def __init__(self, model):
         self.model = model
 
+    @staticmethod
+    def format_number(num):
+        if num >= 1_000_000_000:
+            return f"{num / 1_000_000_000:.2f}B"
+        elif num >= 1_000_000:
+            return f"{num / 1_000_000:.2f}M"
+        elif num >= 1_000:
+            return f"{num / 1_000:.2f}K"
+        else:
+            return str(num)
+
     def count_parameters(self):
         trainable_params = sum(p.numel()
                                for p in self.model.parameters() if p.requires_grad)
         non_trainable_params = sum(p.numel()
                                    for p in self.model.parameters() if not p.requires_grad)
 
-        def format_number(num):
-            if num >= 1_000_000_000:
-                return f"{num / 1_000_000_000:.2f}B"
-            elif num >= 1_000_000:
-                return f"{num / 1_000_000:.2f}M"
-            elif num >= 1_000:
-                return f"{num / 1_000:.2f}K"
-            else:
-                return str(num)
-
-        print(f"Trainable parameters: {format_number(trainable_params)}")
         print(
-            f"Non-trainable parameters: {format_number(non_trainable_params)}")
+            f"Trainable parameters: {ModelSummary.format_number(trainable_params)}")
+        print(
+            f"Non-trainable parameters: {ModelSummary.format_number(non_trainable_params)}")
 
     def model_size(self):
         param_size = sum(param.nelement() * param.element_size()

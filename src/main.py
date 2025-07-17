@@ -1,7 +1,7 @@
 import settings as s
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.distributed import init_process_group, destroy_process_group
+from torch.distributed import destroy_process_group
 import wandb
 import torch.nn.functional as F
 import torch
@@ -12,64 +12,65 @@ import os
 import sys
 sys.path.append("../src")
 
-print(s.is_ddp)
 
-if s.is_ddp:
-    init_process_group(backend='nccl')
-    ddp_rank = int(os.environ['RANK'])
-    ddp_local_rank = int(os.environ['LOCAL_RANK'])
-    ddp_world_size = int(os.environ['WORLD_SIZE'])
-    device = f'cuda:{ddp_local_rank}'
-    torch.cuda.set_device(device)
-    # this process will do logging, checkpointing etc.
-    master_process = ddp_rank == 0
-else:
-    # vanilla, non-DDP run
-    ddp_rank = 0
-    ddp_local_rank = 0
-    ddp_world_size = 1
-    master_process = True
+# if ddp_master_process:
+print(s.ddp_global_rank, s.ddp_local_rank, s.ddp_world_size, s.device)
 
-# model = GPT().to(s.config["device"])
-# model = torch.compile(model)
-# model_summary = ModelSummary(model)
-# model_summary.summary()
+model = GPT().to(s.config["device"])
+model = torch.compile(model)
+if s.is_ddp_available:
+    model = DDP(model, device_ids=[s.ddp_local_rank])
+    raw_model = model.module if s.is_ddp_available else model
 
-# dataset = DatasetLite()
-# train_dataloader = DataLoaderLite(dataset, split="train")
-# val_dataloader = DataLoaderLite(dataset, split="val")
+if s.ddp_master_process:
+    model_summary = ModelSummary(model)
+    model_summary.summary()
 
-# optimizer = model.configure_optimizers(
-#     lr=s.config["optimizer"]["lr"],
-#     weight_decay=s.config["optimizer"]["weight_decay"],
-#     betas=s.config["optimizer"]["betas"]
-# )
 
-# trainer = Trainer(model, optimizer, {"train_dataloader":train_dataloader, "val_dataloader":val_dataloader})
+dataset = DatasetLite()
+train_dataloader = DataLoaderLite(dataset, split="train")
+val_dataloader = DataLoaderLite(dataset, split="val")
 
-# # 🧪 Training Loop with WandB
-# try:
-#     wandb.init(project="GPT-mini", config=s.config, dir=s.logs_path, mode=s.wandb_mode)
+optimizer = raw_model.configure_optimizers(
+    lr=s.config["optimizer"]["lr"],
+    weight_decay=s.config["optimizer"]["weight_decay"],
+    betas=s.config["optimizer"]["betas"]
+)  # type: ignore
 
-#     for step in range(s.config["training"]["max_steps"]):
-#         train_loss, elapsed_time = trainer.train_step()
-#         val_loss = trainer.val_step()
+trainer = Trainer(model, optimizer, {
+                  "train_dataloader": train_dataloader, "val_dataloader": val_dataloader})
 
-#         print(f"step {step:<3} | train_loss {train_loss:<5.2f} | val_loss {val_loss:<5.2f} | time {elapsed_time * 1000:<4.2f} ms")
-#         wandb.log({"train_loss": train_loss, "val_loss": val_loss})
+# 🧪 Training Loop with WandB
+try:
+    if s.ddp_master_process:
+        wandb.init(project="GPT-mini", config=s.config,
+                   dir=s.logs_path, mode=s.wandb_mode)
 
-#         if step % 10 == 0:
-#             # Save for every 10 steps
-#             checkpoint = {
-#                 'model_state_dict': model.state_dict(),
-#                 'optimizer_state_dict': optimizer.state_dict(),
-#                 'train_loss': train_loss,
-#                 'val_loss': val_loss
-#             }
+    for step in range(s.config["training"]["max_steps"]):
+        train_loss, elapsed_time, norm = trainer.train_step()
+        val_loss = trainer.val_step()
 
-#             torch.save(checkpoint, s.model_checkpoint_path)
-# except KeyboardInterrupt:
-#     print("Stopping Run!")
-# finally:
-#     wandb.log_model(s.model_checkpoint_path)
-#     wandb.finish()
+        if s.ddp_master_process:
+            print(
+                f"step {step:<3} | train_loss {train_loss:<5.2f} | val_loss {val_loss:<5.2f} | norm {norm:<5.2f} | time {elapsed_time * 1000:<4.2f} ms")
+            wandb.log({"train_loss": train_loss, "val_loss": val_loss})
+
+            if step % 10 == 0:
+                # Save for every 10 steps
+                checkpoint = {
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'train_loss': train_loss,
+                    'val_loss': val_loss
+                }
+
+                torch.save(checkpoint, s.model_checkpoint_path)
+except KeyboardInterrupt:
+    print("Stopping Run!")
+finally:
+    if s.ddp_master_process:
+        wandb.log_model(s.model_checkpoint_path)
+        wandb.finish()
+
+if s.is_ddp_available:
+    destroy_process_group()

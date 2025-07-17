@@ -1,4 +1,4 @@
 # GPT
 
 ## Training
-uv run torchrun --standalone --nproc-per-node=3 src/main.py
+uv run torchrun --standalone --nproc-per-node=2 src/main.py

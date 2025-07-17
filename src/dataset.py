@@ -12,22 +12,26 @@ class DatasetLite:
         B, T = s.config["dataset"]["batch_size"], s.config["dataset"]["block_size"]
         self.enc = tiktoken.get_encoding("gpt2")
         if not s.tokens_path.exists():
-            text = s.data_path.read_text(encoding="utf-8")
+            text = s.shakespear_data_path.read_text(encoding="utf-8")
             tokens = self.enc.encode(text)
-            print(f"Number of tokens: {len(tokens)}")
             with s.tokens_path.open("wb") as f:
                 pickle.dump(tokens, f)
 
-            print(f"Tokens saved to: {s.tokens_path.resolve()}")
+            if s.ddp_master_process:
+                print(f"Number of tokens: {len(tokens)}")
+                print(f"Tokens saved to: {s.tokens_path.resolve()}")
         else:
-            print("Tokens already saved!")
+            if s.ddp_master_process:
+                print("Tokens already saved!")
             with s.tokens_path.open("rb") as f:
                 tokens = pickle.load(f)
-                print(f"Loaded {len(tokens)} tokens from disk")
+                if s.ddp_master_process:
+                    print(f"Loaded {len(tokens)} tokens from disk")
 
         self.tokens = torch.tensor(tokens, dtype=torch.long, device=s.device)
-        print(
-            f"1 Epoch = {(len(tokens) - 1) // (B*T)} batches.")
+        if s.ddp_master_process:
+            print(
+                f"1 Epoch = {(len(tokens) - 1) // (B*T)} batches.")
 
 
 class DataLoaderLite:
@@ -36,7 +40,7 @@ class DataLoaderLite:
         self.split = split
         self.B, self.T = s.config["dataset"]["batch_size"], s.config["dataset"]["block_size"]
 
-        self.current_position = 0
+        self.current_position = self.B * self.T * s.ddp_global_rank
         train_split = int(len(self.dataset.tokens) *
                           s.config["dataset"]["train_split"])
         train_data = self.dataset.tokens[:train_split]
@@ -51,9 +55,9 @@ class DataLoaderLite:
         y = (buf[1:]).reshape(self.B, self.T)
 
         # advance the position in the tensor
-        self.current_position += self.B * self.T
+        self.current_position += self.B * self.T * s.ddp_world_size
         # if loading the next batch would be out of bounds, reset
-        if self.current_position + (self.B * self.T + 1) > len(self.tokens):
-            self.current_position = 0
+        if self.current_position + (self.B * self.T * s.ddp_world_size + 1) > len(self.tokens):
+            self.current_position = self.B * self.T * s.ddp_global_rank
 
         return x, y

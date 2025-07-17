@@ -2,12 +2,21 @@ import os
 from pathlib import Path
 import torch
 import tiktoken
+import torch.distributed as dist
+
+# Seed
+torch.manual_seed(1337)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed(1337)
 
 # Paths
-data_path = Path("../data/shakespear.txt")
-tokens_path = data_path.parent / "tokens.pt"
+project_root_path = Path(__file__).parent.parent
+data_root_path = Path("C:/Users/sampath/Dev/Data")
+sample_10B_data_path = data_root_path / "sample10_data"
+shakespear_data_path = project_root_path / "data/shakespear.txt"
+tokens_path = shakespear_data_path.parent / "tokens.pt"
 
-logs_path = Path("../logs")
+logs_path = project_root_path / "logs"
 logs_path.mkdir(exist_ok=True)
 model_checkpoint_path = logs_path / 'model_checkpoint.pth'
 
@@ -19,11 +28,25 @@ if (enc.n_vocab + 47) % 64 == 0:
 else:
     raise ValueError("Vocabulary size must be divisible by 64.")
 
+
 # DDP
-is_ddp = int(os.environ.get('RANK', -1)) != -1
-if is_ddp:
+is_ddp_available = dist.is_available()
+if is_ddp_available:
     assert torch.cuda.is_available(), "we need CUDA for DDP"
+    dist.init_process_group(backend='nccl')
+    ddp_global_rank = dist.get_rank()
+    ddp_world_size = dist.get_world_size()
+    ddp_local_rank = ddp_global_rank % ddp_world_size
+
+    device = f'cuda:{ddp_local_rank}'
+    torch.cuda.set_device(device)
+    ddp_master_process = (ddp_global_rank == 0)
 else:
+    # vanilla, non-DDP run
+    ddp_global_rank = 0
+    ddp_local_rank = 0
+    ddp_world_size = 1
+    ddp_master_process = True
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # Config
@@ -62,4 +85,4 @@ config = {
 }
 
 assert (config["dataset"]["total_batch_size"] % (
-    config["dataset"]["batch_size"]*config["dataset"]["block_size"]) == 0), "make sure total_batch_size is divisible by batch_size * block_size"
+    config["dataset"]["batch_size"]*config["dataset"]["block_size"]*ddp_world_size) == 0), "make sure total_batch_size is divisible by batch_size * block_size"

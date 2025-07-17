@@ -3,6 +3,7 @@ import torch.nn.functional as F
 import time
 import settings as s
 import wandb
+import torch.distributed as dist
 
 
 class Trainer:
@@ -11,13 +12,14 @@ class Trainer:
         self.optimizer = optimizer
         self.train_dataloader = dataloaders["train_dataloader"]
         self.val_dataloader = dataloaders["val_dataloader"]
-        self.grad_accum_steps = s.config["dataset"]["total_batch_size"] / (
-            s.config["dataset"]["batch_size"]*s.config["dataset"]["block_size"])
+        self.grad_accum_steps = int(s.config["dataset"]["total_batch_size"] / (
+            s.config["dataset"]["batch_size"]*s.config["dataset"]["block_size"]*s.ddp_world_size))
 
-        print(
-            f"total desired batch size: {s.config["dataset"]["total_batch_size"]} tokens.")
-        print(
-            f"calculated gradient accumulation steps: {self.grad_accum_steps}")
+        if s.ddp_master_process:
+            print(
+                f"total desired batch size: {s.config["dataset"]["total_batch_size"]} tokens.")
+            print(
+                f"calculated gradient accumulation steps: {self.grad_accum_steps}")
 
     def train_step(self):
         # Ensure previous CUDA ops are done
@@ -29,18 +31,27 @@ class Trainer:
 
         self.optimizer.zero_grad()
         loss_accum = 0.0
-        for _ in range(self.grad_accum_steps):
+        for micro_step in range(self.grad_accum_steps):
             xb, yb = self.train_dataloader.next_batch()
             with torch.autocast(device_type=s.device, dtype=torch.bfloat16):
                 _, loss = self.model(xb, yb)
 
             loss = loss / self.grad_accum_steps
             loss_accum += loss.detach()
-            loss.backward()
 
+            # ddp grads sync only for last micro step
+            if micro_step == (self.grad_accum_steps - 1):
+                loss.backward()
+            else:
+                with self.model.no_sync():
+                    loss.backward()
+
+        dist.all_reduce(loss_accum, op=dist.ReduceOp.AVG)
         norm = torch.nn.utils.clip_grad_norm_(
             self.model.parameters(), max_norm=s.config["training"]["max_grad_norm"])
-        wandb.log({"gradient_norm": norm})
+
+        if s.ddp_master_process:
+            wandb.log({"gradient_norm": norm})
         self.optimizer.step()
 
         # Sync again to wait for CUDA ops to finish
@@ -49,7 +60,7 @@ class Trainer:
         end_time = time.time()
         elapsed_time = end_time - start_time
 
-        return loss.item(), elapsed_time
+        return loss.item(), elapsed_time, norm
 
     def val_step(self):
         self.model.eval()

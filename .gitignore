@@ -2,9 +2,11 @@
 __pycache__/
 *.py[cod]
 *$py.class
+azcopy*
 
 # data
-data/
+data/sample10B_data/
+data/sample10_data.zip
 
 # tokens
 data/tokens.*

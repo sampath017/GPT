@@ -11,8 +11,7 @@ if torch.cuda.is_available():
 
 # Paths
 project_root_path = Path(__file__).parent.parent
-data_root_path = Path("C:/Users/sampath/Dev/Data")
-sample_10B_data_path = data_root_path / "sample10_data"
+sample10B_data_path = project_root_path / "data/sample10B_data"
 shakespear_data_path = project_root_path / "data/shakespear.txt"
 tokens_path = shakespear_data_path.parent / "tokens.pt"
 

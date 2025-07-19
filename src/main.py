@@ -6,7 +6,7 @@ import wandb
 import torch.nn.functional as F
 import torch
 from utils import load_from_checkpoint, Trainer, ModelSummary
-from dataset import DatasetLite, DataLoaderLite
+from dataset import DataLoaderLite
 from models import GPT
 import os
 import sys
@@ -27,9 +27,8 @@ if s.ddp_master_process:
     model_summary.summary()
 
 
-dataset = DatasetLite()
-train_dataloader = DataLoaderLite(dataset, split="train")
-val_dataloader = DataLoaderLite(dataset, split="val")
+train_dataloader = DataLoaderLite(split="train")
+val_dataloader = DataLoaderLite(split="val")
 
 optimizer = raw_model.configure_optimizers(
     lr=s.config["optimizer"]["lr"],

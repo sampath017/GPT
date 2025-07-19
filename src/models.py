@@ -122,10 +122,11 @@ class GPT(nn.Module):
         num_decay_params = sum(p.numel() for p in decay_params)
         num_non_decay_params = sum(p.numel() for p in non_decay_params)
 
-        print(
-            f"num decayed parameter tensors: {len(decay_params)}, with {ModelSummary.format_number(num_decay_params)} parameters")
-        print(
-            f"num non-decayed parameter tensors: {len(non_decay_params)}, with {ModelSummary.format_number(num_non_decay_params)} parameters")
+        if s.ddp_master_process:
+            print(
+                f"num decayed parameter tensors: {len(decay_params)}, with {ModelSummary.format_number(num_decay_params)} parameters")
+            print(
+                f"num non-decayed parameter tensors: {len(non_decay_params)}, with {ModelSummary.format_number(num_non_decay_params)} parameters")
 
         optimizer = torch.optim.AdamW(
             optim_groups, lr=lr, betas=betas, fused=True)

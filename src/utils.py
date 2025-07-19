@@ -46,7 +46,8 @@ class Trainer:
                 with self.model.no_sync():
                     loss.backward()
 
-        dist.all_reduce(loss_accum, op=dist.ReduceOp.AVG)
+        if s.is_ddp_available:
+            dist.all_reduce(loss_accum, op=dist.ReduceOp.AVG)
         norm = torch.nn.utils.clip_grad_norm_(
             self.model.parameters(), max_norm=s.config["training"]["max_grad_norm"])
 
@@ -60,13 +61,17 @@ class Trainer:
         end_time = time.time()
         elapsed_time = end_time - start_time
 
-        return loss.item(), elapsed_time, norm
+        return loss_accum.item(), elapsed_time, norm
 
     def val_step(self):
         self.model.eval()
         with torch.no_grad():
             xb, yb = self.val_dataloader.next_batch()
-            _, loss = self.model(xb, yb)
+            with torch.autocast(device_type=s.device, dtype=torch.bfloat16):
+                _, loss = self.model(xb, yb)
+
+        if s.is_ddp_available:
+            dist.all_reduce(loss.detach(), op=dist.ReduceOp.AVG)
 
         return loss.item()
 

@@ -46,12 +46,27 @@ try:
                    dir=s.logs_path, mode=s.wandb_mode)
 
     for step in range(s.config["training"]["max_steps"]):
-        train_loss, elapsed_time, norm = trainer.train_step()
+        # Ensure previous CUDA ops are done
+        if s.device == "cuda":
+            torch.cuda.synchronize()
+        start_time = time.time()
+
+        # Train
+        train_loss, norm = trainer.train_step()
         val_loss = trainer.val_step()
+
+        # Ensure previous CUDA ops are done
+        if s.device == "cuda":
+            torch.cuda.synchronize()
+        end_time = time.time()
+
+        elapsed_time = end_time - start_time # in seconds
+        tokens_processed = train_dataloader.B * train_dataloader.T * s.grad_accum_steps * s.ddp_world_size
+        tokens_per_sec = tokens_processed / elapsed_time
 
         if s.ddp_master_process:
             print(
-                f"step {step:<3} | train_loss {train_loss:<5.2f} | val_loss {val_loss:<5.2f} | norm {norm:<5.2f} | time {elapsed_time * 1000:<4.2f} ms")
+                f"step {step:<3} | train_loss {train_loss:<5.2f} | val_loss {val_loss:<5.2f} | norm {norm:<5.2f} | time {elapsed_time * 1000:<4.2f} ms | tok/sec {tokens_per_sec:<5.2f}")
             wandb.log({"train_loss": train_loss, "val_loss": val_loss})
 
             if step % 10 == 0:

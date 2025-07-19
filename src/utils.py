@@ -22,10 +22,7 @@ class Trainer:
                 f"calculated gradient accumulation steps: {self.grad_accum_steps}")
 
     def train_step(self):
-        # Ensure previous CUDA ops are done
-        if s.device == "cuda":
-            torch.cuda.synchronize()
-        start_time = time.time()
+
 
         self.model.train()
 

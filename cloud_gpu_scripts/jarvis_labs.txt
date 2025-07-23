@@ -1,0 +1,21 @@
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y software-properties-common
+add-apt-repository ppa:deadsnakes/ppa
+apt-get update
+apt-get install nvtop htop -y
+
+pip install uv
+
+git config --global user.email "118274231+sampath017@users.noreply.github.com"
+git config --global user.name "sampath"
+git config --global init.defaultBranch "main"
+git config --global push.default "simple"
+git config --global pull.default "current"
+git config --global credential.helper "store"
+
+cd /home
+rm -rf GPT
+git clone https://github.com/sampath017/GPT.git
+cd GPT
+uv sync

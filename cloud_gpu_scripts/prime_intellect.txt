@@ -1,0 +1,36 @@
+apt-get update
+apt-get install htop git nvtop python3-pip unzip -y
+
+pip install uv
+
+git config --global user.email "118274231+sampath017@users.noreply.github.com"
+git config --global user.name "sampath"
+git config --global init.defaultBranch "main"
+git config --global push.default "simple"
+git config --global pull.default "current"
+git config --global credential.helper "store"
+git config pull.rebase false
+
+cd /workspace
+rm -rf GPT
+git clone https://github.com/sampath017/GPT.git
+cd GPT
+uv sync
+
+# Install azcopy
+wget https://aka.ms/downloadazcopy-v10-linux -O azcopy.tar.gz
+tar -xvf azcopy.tar.gz
+cp ./azcopy_linux_amd64_*/azcopy /usr/local/bin/
+azcopy --version
+rm -rf azcopy_* azcopy.*
+
+# Download the dataset using azcopy
+azcopy copy "https://gptdatastore.blob.core.windows.net/sampletenb/sample10_data.zip?sp=r&st=2025-07-19T19:20:26Z&se=2027-06-09T03:35:26Z&spr=https&sv=2024-11-04&sr=b&sig=DwyA02Fe6xTnnz3k2SP9t2bfhweANMQ9UEfhelu%2BosU%3D" "./sample10_data.zip"
+
+# Extract and clean up
+mkdir -p sample10B_data
+unzip sample10_data.zip -d sample10B_data
+rm -f sample10_data.zip
+mv sample10B_data data/
+
+echo "✅ Done. Data is ready in ./data/sample10B_data/"

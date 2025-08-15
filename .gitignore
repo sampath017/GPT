@@ -5,11 +5,8 @@ __pycache__/
 azcopy*
 
 # data
-data/sample10B_data/
-data/sample10_data.zip
-
-# tokens
-data/tokens.*
+!data/shakespear.txt
+data/*
 
 # models
 models/

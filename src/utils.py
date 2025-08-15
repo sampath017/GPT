@@ -1,8 +1,8 @@
+import wandb
 import torch
 import torch.nn.functional as F
-import time
 import settings as s
-import wandb
+import math
 import torch.distributed as dist
 
 
@@ -21,7 +21,7 @@ class Trainer:
             print(
                 f"calculated gradient accumulation steps: {self.grad_accum_steps}")
 
-    def train_step(self):
+    def train_step(self, train_step):
         self.model.train()
 
         self.optimizer.zero_grad()
@@ -46,6 +46,13 @@ class Trainer:
         norm = torch.nn.utils.clip_grad_norm_(
             self.model.parameters(), max_norm=s.config["training"]["max_grad_norm"])
 
+        # Perform a Optimization Step
+        lr = Trainer.get_lr(train_step)
+        if s.ddp_master_process:
+            wandb.log({"lr": lr})
+        for param_group in self.optimizer.param_groups:
+            param_group["lr"] = lr
+
         self.optimizer.step()
 
         return loss_accum.item(), norm
@@ -62,11 +69,28 @@ class Trainer:
 
         return loss.item()
 
+    @staticmethod
+    def get_lr(train_step):
+        # 1) linear warmup for warmup_iters steps
+        if train_step < s.config["optimizer"]["warmup_steps"]:
+            return s.config["optimizer"]["max_lr"] * (train_step+1) / s.config["optimizer"]["warmup_steps"]
+
+        # 2) in between, use cosine decay down to min learning rate
+        decay_ratio = (train_step - s.config["optimizer"]["warmup_steps"]) / (
+            s.config["optimizer"]["max_steps"] - s.config["optimizer"]["warmup_steps"])
+        assert 0 <= decay_ratio <= 1, "train_step should be greater than warmup steps"
+
+        # coeff starts at 1 and goes to 0
+        coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))
+
+        # 3) if train_step > lr_decay_iters, return min learning rate
+        if train_step > s.config["optimizer"]["max_steps"]:
+            return s.config["optimizer"]["min_lr"]
+
+        return s.config["optimizer"]["min_lr"] + coeff * (s.config["optimizer"]["max_lr"] - s.config["optimizer"]["min_lr"])
+
 
 class ModelSummary:
-    def __init__(self, model):
-        self.model = model
-
     @staticmethod
     def format_number(num):
         if num >= 1_000_000_000:
@@ -78,22 +102,24 @@ class ModelSummary:
         else:
             return str(num)
 
-    def count_parameters(self):
+    @staticmethod
+    def count_parameters(model):
         trainable_params = sum(p.numel()
-                               for p in self.model.parameters() if p.requires_grad)
+                               for p in model.parameters() if p.requires_grad)
         non_trainable_params = sum(p.numel()
-                                   for p in self.model.parameters() if not p.requires_grad)
+                                   for p in model.parameters() if not p.requires_grad)
 
         print(
             f"Trainable parameters: {ModelSummary.format_number(trainable_params)}")
         print(
             f"Non-trainable parameters: {ModelSummary.format_number(non_trainable_params)}")
 
-    def model_size(self):
+    @staticmethod
+    def model_size(model):
         param_size = sum(param.nelement() * param.element_size()
-                         for param in self.model.parameters())
+                         for param in model.parameters())
         buffer_size = sum(buffer.nelement() * buffer.element_size()
-                          for buffer in self.model.buffers())
+                          for buffer in model.buffers())
         total_size = param_size + buffer_size
 
         def format_size(size_bytes):
@@ -109,9 +135,10 @@ class ModelSummary:
         size_all = format_size(total_size)
         print(f"Model size: {size_all}")
 
-    def summary(self):
-        self.model_size()
-        self.count_parameters()
+    @staticmethod
+    def summary(model):
+        ModelSummary.model_size(model)
+        ModelSummary.count_parameters(model)
 
 
 @torch.no_grad()

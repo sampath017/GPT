@@ -9,3 +9,10 @@ step 5   | train_loss 7.83  | val_loss 7.81  | norm 0.75  | time 1297.64 ms
 step 6   | train_loss 7.91  | val_loss 7.79  | norm 0.57  | time 1303.11 ms
 step 7   | train_loss 7.80  | val_loss 7.86  | norm 0.86  | time 1300.03 ms
 step 8   | train_loss 7.87  | val_loss 7.89  | norm 0.91  | time 1304.53 ms
+
+# TO-UNDERSTAND
+1. 
+    why reverse weight sharing scheme is resulting in large loss ?
+    step 0   | train_loss 472.79 | norm 95.00 | time 54479.77 ms | tok/sec 9.62K
+    step 1   | train_loss 121.85 | norm 286.41 | time 48853.12 ms | tok/sec 10.73K
+    step 2   | train_loss 106.30 | norm 127.80 | time 48945.54 ms | tok/sec 10.71K

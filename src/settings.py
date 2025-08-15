@@ -1,18 +1,12 @@
-import os
 from pathlib import Path
 import torch
 import tiktoken
 import torch.distributed as dist
 
-# Seed
-torch.manual_seed(1337)
-if torch.cuda.is_available():
-    torch.cuda.manual_seed(1337)
-
 # Paths
 project_root_path = Path(__file__).parent.parent.resolve()
 data_root_path = project_root_path / "data"
-sample10B_data_path = data_root_path / "sample10B_data"
+sample10B_data_path = data_root_path / "sample10B"
 # sample10B_data_path = Path("/home/jl_fs/sample10B_data")
 # sample10B_data_path = Path(r"C:\Users\sampath\Dev\Data\sample10B_data")
 
@@ -36,7 +30,7 @@ is_ddp_available = dist.is_available() and not dist.is_initialized()
 try:
     if is_ddp_available:
         assert torch.cuda.is_available(), "we need CUDA for DDP so falling back to CPU"
-        dist.init_process_group(backend='gloo')  # this will fail in notebook
+        dist.init_process_group(backend='nccl')  # this will fail in notebook
         ddp_global_rank = dist.get_rank()
         ddp_world_size = dist.get_world_size()
         ddp_local_rank = ddp_global_rank % ddp_world_size
@@ -69,7 +63,7 @@ config = {
         "dropout": 0.2
     },
     "training": {
-        "max_steps": 17167 * 4,  # 4 epoch
+        "max_steps": 17167,  # 1 epoch
         "val_interval": 200,  # steps
         "val_steps": 20,
         "max_grad_norm": 1.0
@@ -79,15 +73,18 @@ config = {
         "vocab_size": vocab_size,
         "block_size": 1024,
         "total_batch_size": 2**19,  # In Tokens
-        "batch_size": 32,
+        "batch_size": 4,
         "train_split": 0.7,
         "val_split": 0.3
     },
     "optimizer": {
         "name": "AdamW",
-        "lr": 0.001,
+        "max_lr": 6e-4,
+        "min_lr": 6e-4 * 0.1,
+        "warmup_steps": 715,
         "betas": (0.9, 0.999),
-        "weight_decay": 0.01
+        "weight_decay": 0.1,
+        "eps": 1e-8
     }
 }
 

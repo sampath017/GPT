@@ -73,7 +73,7 @@ config = {
         "vocab_size": vocab_size,
         "block_size": 1024,
         "total_batch_size": 2**19,  # In Tokens
-        "batch_size": 4,
+        "batch_size": 64,
         "train_split": 0.7,
         "val_split": 0.3
     },

@@ -61,7 +61,7 @@ val_dataloader = DataLoaderLite(split="val")
 
 optimizer = raw_model.configure_optimizers(
     weight_decay=s.config["optimizer"]["weight_decay"],
-    lr=s.config["optimizer"]["lr"],
+    lr=s.config["optimizer"]["max_lr"],
     betas=s.config["optimizer"]["betas"],
     eps=s.config["optimizer"]["eps"]
 )  # type: ignore
@@ -80,15 +80,15 @@ try:
         start_time = time.time()
 
         # Training
-        train_loss, gradient_norm = trainer.train_step()
+        train_loss, gradient_norm = trainer.train_step(train_step)
 
         # Validation, Generation, Evaluate on hellaswag and checkpoint
         if train_step != 0 and train_step % s.config["training"]["val_interval"] == 0:
             val_loss = 0.0
             val_steps = s.config["training"]["val_steps"]
             for _ in range(val_steps):
-                step_val_loss = trainer.val_step(train_step)
-                val_loss_accum += step_val_loss
+                step_val_loss = trainer.val_step()
+                val_loss += step_val_loss
 
             val_loss = val_loss / val_steps
 

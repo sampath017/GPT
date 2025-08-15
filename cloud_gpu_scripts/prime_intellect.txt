@@ -27,11 +27,4 @@ rm -rf azcopy_* azcopy.*
 # Download the dataset using azcopy
 azcopy copy "https://gptstorage.blob.core.windows.net/finewebedusample10/sample10B?sp=rl&st=2025-08-15T18:46:22Z&se=2025-08-16T03:01:22Z&spr=https&sv=2024-11-04&sr=d&sig=7uJQD6AcYi%2F4kvduMG9aDV8lbOvxEXq%2Bp21Ty3rbmQU%3D&sdd=1" "./data/sample10_data" --recursive
 
-# Extract and clean up
-mkdir -p sample10B_data
-unzip sample10_data.zip -d sample10B_data
-rm -f sample10_data.zip
-mv sample10B_data data/
-
 echo "✅ Done. Data is ready in ./data/sample10B_data/"
-

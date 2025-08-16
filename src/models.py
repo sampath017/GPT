@@ -92,7 +92,7 @@ class GPT(nn.Module):
 
         # weight sharing scheme
         # self.lm_head.weight = self.transformer.token_embedding_table.weight
-        self.transformer.token_embedding_table.weight = self.lm_head.weight
+        self.transformer.token_embedding_table.weight = self.lm_head.weight  # type: ignore
 
     def forward(self, x, y=None):
         B, T = x.shape

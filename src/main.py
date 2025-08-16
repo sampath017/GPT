@@ -27,9 +27,9 @@ if gpt2_xl_hellaswag_acc_path.exists() and gpt2_hellaswag_acc_path.exists():
 else:
     # gpt2 models
     gpt2_xl_model = GPT2LMHeadModel.from_pretrained(
-        "gpt2-xl", cache_dir=s.logs_path).to(s.device)
+        "gpt2-xl", cache_dir=s.logs_path).to(s.device)  # type: ignore
     gpt2_model = GPT2LMHeadModel.from_pretrained(
-        "gpt2", cache_dir=s.logs_path).to(s.device)
+        "gpt2", cache_dir=s.logs_path).to(s.device)  # type: ignore
 
     # Evaluate only if not cached
     gpt2_xl_hellaswag_acc = evaluate(gpt2_xl_model)
@@ -43,7 +43,7 @@ if s.ddp_master_process:
     print(f"gpt2_xl_hellaswag_acc: {gpt2_xl_hellaswag_acc}")
     print(f"gpt2_hellaswag_acc: {gpt2_hellaswag_acc}")
     wandb.init(project="GPT3-124M", config=s.config,
-               dir=s.logs_path, mode=s.wandb_mode)
+               dir=s.logs_path, mode=s.wandb_mode)  # type: ignore
     wandb.log({"gpt2_xl_hellaswag_acc": gpt2_xl_hellaswag_acc})
     wandb.log({"gpt2_hellaswag_acc": gpt2_hellaswag_acc})
 

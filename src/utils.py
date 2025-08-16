@@ -55,7 +55,7 @@ class Trainer:
 
         self.optimizer.step()
 
-        return loss_accum.item(), norm
+        return loss_accum.item(), norm  # type: ignore
 
     def val_step(self):
         self.model.eval()

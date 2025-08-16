@@ -10,7 +10,7 @@ remote_name = "sample-10BT"
 shard_size = int(1e9)  # 1B tokens per shard, total of 10 shards
 
 fw = load_dataset("HuggingFaceFW/fineweb-edu",
-                  cache_dir=s.data_path.as_posix(), name=remote_name, split="train")
+                  cache_dir=s.data_root_path.as_posix(), name=remote_name, split="train")
 
 # init the tokenizer
 enc = tiktoken.get_encoding("gpt2")
@@ -34,7 +34,7 @@ def write_datafile(filename, tokens_np):
 
 
 # tokenize all documents and write output shards, each of shard_size tokens (last shard has remainder)
-nprocs = max(1, os.cpu_count())
+nprocs = max(1, os.cpu_count())  # type: ignore
 with mp.Pool(nprocs) as pool:
     shard_index = 0
     # preallocate buffer to hold current shard
@@ -56,10 +56,11 @@ with mp.Pool(nprocs) as pool:
         else:
             # write the current shard and start a new one
             split = "val" if shard_index == 0 else "train"
-            filename = data_path / f"edufineweb_{split}_{shard_index:06d}"
+            filename = s.data_root_path / \
+                f"edufineweb_{split}_{shard_index:06d}"
             # split the document into whatever fits in this shard; the remainder goes to next one
             remainder = shard_size - token_count
-            progress_bar.update(remainder)
+            progress_bar.update(remainder)  # type: ignore
             all_tokens_np[token_count:token_count +
                           remainder] = tokens[:remainder]
             write_datafile(filename, all_tokens_np)
@@ -72,5 +73,5 @@ with mp.Pool(nprocs) as pool:
     # write any remaining tokens as the last shard
     if token_count != 0:
         split = "val" if shard_index == 0 else "train"
-        filename = data_path / f"edufineweb_{split}_{shard_index:06d}"
+        filename = s.data_root_path / f"edufineweb_{split}_{shard_index:06d}"
         write_datafile(filename, all_tokens_np[:token_count])

@@ -64,12 +64,12 @@ config = {
     },
     "training": {
         "max_steps": 17167,  # 1 epoch
-        "val_interval": 200,  # steps
+        "val_interval": 2,  # TEMP
         "val_steps": 20,
         "max_grad_norm": 1.0
     },
     "dataset": {
-        "name": "tiny_shakespear",
+        "name": "finewebedu_sample10B",
         "vocab_size": vocab_size,
         "block_size": 1024,
         "total_batch_size": 2**19,  # In Tokens

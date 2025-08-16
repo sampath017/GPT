@@ -49,7 +49,7 @@ class Trainer:
         # Perform a Optimization Step
         lr = Trainer.get_lr(train_step)
         if s.ddp_master_process:
-            wandb.log({"lr": lr})
+            wandb.log({"train_step": train_step, "lr": lr})
         for param_group in self.optimizer.param_groups:
             param_group["lr"] = lr
 
@@ -77,14 +77,14 @@ class Trainer:
 
         # 2) in between, use cosine decay down to min learning rate
         decay_ratio = (train_step - s.config["optimizer"]["warmup_steps"]) / (
-            s.config["optimizer"]["max_steps"] - s.config["optimizer"]["warmup_steps"])
+            s.config["training"]["max_steps"] - s.config["optimizer"]["warmup_steps"])
         assert 0 <= decay_ratio <= 1, "train_step should be greater than warmup steps"
 
         # coeff starts at 1 and goes to 0
         coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))
 
         # 3) if train_step > lr_decay_iters, return min learning rate
-        if train_step > s.config["optimizer"]["max_steps"]:
+        if train_step > s.config["training"]["max_steps"]:
             return s.config["optimizer"]["min_lr"]
 
         return s.config["optimizer"]["min_lr"] + coeff * (s.config["optimizer"]["max_lr"] - s.config["optimizer"]["min_lr"])

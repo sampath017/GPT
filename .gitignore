@@ -13,6 +13,7 @@ models/
 
 # logs
 logs/
+latest_version.txt
 
 # But do NOT ignore these specific files
 !logs/gpt2_*.pt

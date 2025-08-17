@@ -23,6 +23,7 @@ class CausalSelfAttention(nn.Module):
         self.attn = nn.Linear(num_embds, 3 * num_embds)
         # output projection
         self.proj = nn.Linear(num_embds, num_embds)
+        self.c_proj.NANOGPT_SCALE_INIT = 1  # type: ignore
         # regularization
         self.n_head = num_heads
         self.n_embd = num_embds
@@ -95,6 +96,8 @@ class GPT(nn.Module):
         # self.lm_head.weight = self.transformer.token_embedding_table.weight
         self.transformer.token_embedding_table.weight = self.lm_head.weight  # type: ignore
 
+        self.apply(self._init_weights)
+
     def forward(self, x, y=None):
         B, T = x.shape
 
@@ -139,3 +142,14 @@ class GPT(nn.Module):
             optim_groups, lr=lr, betas=betas, eps=eps, fused=True)
 
         return optimizer
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            std = 0.02
+            if hasattr(module, 'NANOGPT_SCALE_INIT'):
+                std *= (2 * num_blocks) ** -0.5
+            torch.nn.init.normal_(module.weight, mean=0.0, std=std)
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)

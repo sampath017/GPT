@@ -155,10 +155,9 @@ class ModelCheckpointManager:
         self.top_k = top_k
         self.best_models = []  # list of (val_loss, path)
 
-    def save_checkpoint(self, model, optimizer, train_step, train_loss, val_loss):
-        """Save checkpoint to disk, track top-K."""
-        ckpt_path = s.models_root_path / \
-            f"train_step_{train_step}_val_loss_{val_loss:.2f}.pt"
+    def save_checkpoint_to_wandb(self, model, optimizer, train_step, train_loss, val_loss):
+        checkpoint_path = s.models_root_path / \
+            f"model_checkpoint_train_step_{train_step}_val_loss_{val_loss:.2f}.pt"
 
         checkpoint = {
             "train_step": train_step,
@@ -168,28 +167,45 @@ class ModelCheckpointManager:
             "optimizer_state_dict": optimizer.state_dict()
         }
 
-        torch.save(checkpoint, ckpt_path)
+        torch.save(checkpoint, checkpoint_path)
 
-        # Track best models
-        self.best_models.append((val_loss, ckpt_path))
-        self.best_models.sort(key=lambda x: x[0])  # lower val_loss is better
+        # Log to wandb
+        artifact = wandb.Artifact(
+            f"model_checkpoint_train_step_{train_step}_val_loss_{val_loss:.2f}", type="model",
+            metadata={"train_step": train_step}
+        )
+        artifact.add_file(str(checkpoint_path))
+        wandb.log_artifact(artifact)
+
+        # Track top-K
+        self.best_models.append((train_step, val_loss, checkpoint_path))
+        self.best_models.sort(key=lambda x: x[0])
         self.best_models = self.best_models[:self.top_k]
 
-        print(self.best_models)
-        # Delete models not in top-k
+        # Delete local files not in top-K
         current_paths = [p for _, p in self.best_models]
         for f in s.models_root_path.iterdir():
             if f not in current_paths:
                 try:
-                    print(f)
-                    f.unlink()  # pathlib way to delete
+                    f.unlink()
                 except FileNotFoundError:
                     pass
 
-    def save_checkpoints_to_wandb(self):
-        # Log only best models to wandb at end of training
-        for _, path in self.best_models:
-            wandb.log_model(path)
+    def cleanup_wandb_artifacts(self, run):
+        # Get all model artifacts
+        api = wandb.Api()
+        artifacts = api.run(run.path).logged_artifacts()
+
+        top_k_train_steps = [
+            train_step for train_step, _, _ in self.best_models]
+
+        for artifact in artifacts:
+            if artifact.metadata["train_step"] not in top_k_train_steps:
+                try:
+                    artifact.delete()
+                    print(f"Deleted wandb artifact: {artifact.name}")
+                except Exception as e:
+                    print(f"Failed to delete artifact {artifact.name}: {e}")
 
     def load_checkpoint(self, path, model, optimizer=None):
         """Load checkpoint into model and optimizer."""

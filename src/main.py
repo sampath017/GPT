@@ -39,8 +39,8 @@ else:
 if s.ddp_master_process:
     print(f"gpt2_xl_hellaswag_acc: {gpt2_xl_hellaswag_acc}")
     print(f"gpt2_hellaswag_acc: {gpt2_hellaswag_acc}")
-    wandb.init(project="GPT3-124M", config=s.config,
-               dir=s.logs_root_path, mode=s.wandb_mode)  # type: ignore
+    wandb_run = wandb.init(project="GPT3-124M", config=s.config,
+                           dir=s.logs_root_path, mode=s.wandb_mode)  # type: ignore
     wandb.log({"gpt2_xl_hellaswag_acc": gpt2_xl_hellaswag_acc})
     wandb.log({"gpt2_hellaswag_acc": gpt2_hellaswag_acc})
 
@@ -122,6 +122,8 @@ try:
                 f"step {train_step:<3} | train_loss {train_loss:<5.2f} | norm {gradient_norm:<5.2f} | time {elapsed_time * 1000:<4.2f} ms | tok/sec {tokens_per_sec}")
             wandb.log({"train_loss": train_loss, "tok/sec": tokens_per_sec_number,
                       "gradient_norm": gradient_norm, "train_step": train_step})
+            model_checkpoint_manager.save_checkpoint_to_wandb()
+            model_checkpoint_manager.cleanup_wandb_artifacts(wandb_run)
 
 
 except KeyboardInterrupt:
@@ -129,7 +131,6 @@ except KeyboardInterrupt:
         print("Stopping Run!")
 finally:
     if s.ddp_master_process:
-        model_checkpoint_manager.save_checkpoints_to_wandb()
         wandb.finish()
 
     if dist.is_initialized():

@@ -1,24 +1,21 @@
-import hellaswag
-import settings as s
+import time
+import sys
 import torch.distributed as dist
+import settings as s
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.distributed import destroy_process_group
 import wandb
-import torch.nn.functional as F
 import torch
-from utils import Trainer, ModelSummary, generate
+from utils import Trainer, ModelSummary, generate, ModelCheckpointManager
 from dataset import DataLoaderLite
 from models import GPT
-import time
 from hellaswag import evaluate
 from transformers import GPT2LMHeadModel
 
 # if ddp_master_process:
 print(s.ddp_global_rank, s.ddp_local_rank, s.ddp_world_size, s.device)
 
-
-gpt2_xl_hellaswag_acc_path = s.logs_path / "gpt2_xl_hellaswag_acc.pt"
-gpt2_hellaswag_acc_path = s.logs_path / "gpt2_hellaswag_acc.pt"
+gpt2_xl_hellaswag_acc_path = s.logs_root_path / "gpt2_xl_hellaswag_acc.pt"
+gpt2_hellaswag_acc_path = s.logs_root_path / "gpt2_hellaswag_acc.pt"
 
 # Check if both values are cached
 if gpt2_xl_hellaswag_acc_path.exists() and gpt2_hellaswag_acc_path.exists():
@@ -27,9 +24,9 @@ if gpt2_xl_hellaswag_acc_path.exists() and gpt2_hellaswag_acc_path.exists():
 else:
     # gpt2 models
     gpt2_xl_model = GPT2LMHeadModel.from_pretrained(
-        "gpt2-xl", cache_dir=s.logs_path).to(s.device)  # type: ignore
+        "gpt2-xl", cache_dir=s.logs_root_path).to(s.device)  # type: ignore
     gpt2_model = GPT2LMHeadModel.from_pretrained(
-        "gpt2", cache_dir=s.logs_path).to(s.device)  # type: ignore
+        "gpt2", cache_dir=s.logs_root_path).to(s.device)  # type: ignore
 
     # Evaluate only if not cached
     gpt2_xl_hellaswag_acc = evaluate(gpt2_xl_model)
@@ -43,7 +40,7 @@ if s.ddp_master_process:
     print(f"gpt2_xl_hellaswag_acc: {gpt2_xl_hellaswag_acc}")
     print(f"gpt2_hellaswag_acc: {gpt2_hellaswag_acc}")
     wandb.init(project="GPT3-124M", config=s.config,
-               dir=s.logs_path, mode=s.wandb_mode)  # type: ignore
+               dir=s.logs_root_path, mode=s.wandb_mode)  # type: ignore
     wandb.log({"gpt2_xl_hellaswag_acc": gpt2_xl_hellaswag_acc})
     wandb.log({"gpt2_hellaswag_acc": gpt2_hellaswag_acc})
 
@@ -68,6 +65,7 @@ optimizer = raw_model.configure_optimizers(
 
 trainer = Trainer(model, optimizer, {
                   "train_dataloader": train_dataloader, "val_dataloader": val_dataloader})
+model_checkpoint_manager = ModelCheckpointManager()
 
 try:
     # 🧪 Training Loop with WandB
@@ -104,16 +102,8 @@ try:
                 wandb.log({"hellaswag_accuracy": hellaswag_acc,
                           "train_step": train_step})
 
-                # checkpoint
-                checkpoint = {
-                    "train_step": train_step,
-                    'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict(),
-                    "train_loss": train_loss,
-                    "val_loss": val_loss
-                }
-
-                torch.save(checkpoint, s.model_checkpoint_path)
+                model_checkpoint_manager.save_checkpoint(
+                    model, optimizer, train_step, train_loss, val_loss)
 
         # Ensure previous CUDA ops are done
         if s.device == "cuda":
@@ -139,8 +129,11 @@ except KeyboardInterrupt:
         print("Stopping Run!")
 finally:
     if s.ddp_master_process:
-        wandb.log_model(s.model_checkpoint_path)
+        model_checkpoint_manager.save_checkpoints_to_wandb()
         wandb.finish()
 
-    if s.is_ddp_available:
-        destroy_process_group()
+    if dist.is_initialized():
+        dist.destroy_process_group()
+
+    torch.cuda.empty_cache()
+    sys.exit(0)

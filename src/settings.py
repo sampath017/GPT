@@ -6,16 +6,17 @@ import torch.distributed as dist
 # Paths
 project_root_path = Path(__file__).parent.parent.resolve()
 data_root_path = project_root_path / "data"
-sample10B_data_path = data_root_path / "sample10B"
+# sample10B_data_path = data_root_path / "sample10B"
 # sample10B_data_path = Path("/home/jl_fs/sample10B_data")
 # sample10B_data_path = Path(r"C:\Users\sampath\Dev\Data\sample10B_data")
 
-# shakespear_data_path = data_root_path / "shakespear.txt"
-# tokens_path = data_root_path / "tokens.pt"
+shakespear_data_path = data_root_path / "shakespear.txt"
+tokens_path = data_root_path / "tokens.pt"
 
-logs_path = project_root_path / "logs"
-logs_path.mkdir(exist_ok=True)
-model_checkpoint_path = logs_path / 'model_checkpoint.pth'
+logs_root_path = project_root_path / "logs"
+logs_root_path.mkdir(exist_ok=True)
+models_root_path = project_root_path / "models"
+models_root_path.mkdir(exist_ok=True)
 
 enc = tiktoken.get_encoding("gpt2")
 torch.set_float32_matmul_precision("high")
@@ -64,7 +65,7 @@ config = {
     },
     "training": {
         "max_steps": 17167,  # 1 epoch
-        "val_interval": 2,  # TEMP
+        "val_interval": 200,
         "val_steps": 20,
         "max_grad_norm": 1.0
     },
@@ -72,8 +73,8 @@ config = {
         "name": "finewebedu_sample10B",
         "vocab_size": vocab_size,
         "block_size": 1024,
-        "total_batch_size": 2**19,  # In Tokens
-        "batch_size": 64,
+        "total_batch_size": 2**19,  # In Tokens 2**19
+        "batch_size": 32,
         "train_split": 0.7,
         "val_split": 0.3
     },

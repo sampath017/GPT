@@ -1,16 +1,17 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python Debugger: Current File",
-            "type": "pydevd",
+            "name": "Python Debugger: torchrun (1 GPU)",
+            "type": "debugpy",
             "request": "launch",
-            "program": "${file}",
+            "module": "torch.distributed.run",
+            "args": [
+                "--nproc_per_node=1",  // set to >1 if debugging multi-GPU
+                "src/main.py",         // your training entry script
+            ],
             "console": "integratedTerminal",
-            "justMyCode": false,
+            "justMyCode": false
         }
     ]
 }

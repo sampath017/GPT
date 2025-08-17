@@ -83,7 +83,8 @@ class GPT(nn.Module):
     def __init__(self):
         super().__init__()
         self.transformer = nn.ModuleDict(dict(
-            token_embedding_table=nn.Embedding(vocab_size, num_embds),
+            token_embedding_table=nn.Embedding(
+                vocab_size, num_embds),  # type: ignore
             position_embedding_table=nn.Embedding(block_size, num_embds),
             blocks=nn.Sequential(*[Block() for _ in range(num_blocks)]),
             ln_f=nn.LayerNorm(num_embds)

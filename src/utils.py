@@ -150,18 +150,58 @@ def accuracy(logits, y):
     return accuracy
 
 
-def load_from_checkpoint(path, model, optimizer=None, lr_scheduler=None, device="cpu"):
-    checkpoint = torch.load(path, weights_only=True)
-    model.load_state_dict(checkpoint["model_state_dict"])
-    model = model.to(device)
+class ModelCheckpointManager:
+    def __init__(self, top_k=3):
+        self.top_k = top_k
+        self.best_models = []  # list of (val_loss, path)
 
-    if optimizer:
-        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    def save_checkpoint(self, model, optimizer, train_step, train_loss, val_loss):
+        """Save checkpoint to disk, track top-K."""
+        ckpt_path = s.models_root_path / \
+            f"train_step_{train_step}_val_loss_{val_loss:.2f}.pt"
 
-    if lr_scheduler:
-        lr_scheduler = lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
+        checkpoint = {
+            "train_step": train_step,
+            "train_loss": train_loss,
+            "val_loss": val_loss,
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict()
+        }
 
-    return model, optimizer, lr_scheduler
+        torch.save(checkpoint, ckpt_path)
+
+        # Track best models
+        self.best_models.append((val_loss, ckpt_path))
+        self.best_models.sort(key=lambda x: x[0])  # lower val_loss is better
+        self.best_models = self.best_models[:self.top_k]
+
+        print(self.best_models)
+        # Delete models not in top-k
+        current_paths = [p for _, p in self.best_models]
+        for f in s.models_root_path.iterdir():
+            if f not in current_paths:
+                try:
+                    print(f)
+                    f.unlink()  # pathlib way to delete
+                except FileNotFoundError:
+                    pass
+
+    def save_checkpoints_to_wandb(self):
+        # Log only best models to wandb at end of training
+        for _, path in self.best_models:
+            wandb.log_model(path)
+
+    def load_checkpoint(self, path, model, optimizer=None):
+        """Load checkpoint into model and optimizer."""
+        checkpoint = torch.load(path, map_location=s.device)
+
+        model.load_state_dict(checkpoint["model_state_dict"])
+        model = model.to(s.device)
+
+        if optimizer:
+            optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+
+        return model, optimizer
 
 
 def generate(model):

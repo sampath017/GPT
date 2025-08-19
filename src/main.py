@@ -93,17 +93,18 @@ try:
             generations = generate(model)
             hellaswag_acc = evaluate(model)
 
+            wandb.log({"generations": generations,
+                       "train_step": train_step})
             if s.ddp_master_process:
                 print(f"val loss {val_loss:.4f}")
                 wandb.log({"val_loss": val_loss,
                           "train_step": train_step})
-                wandb.log({"generations": generations,
-                          "train_step": train_step})
                 wandb.log({"hellaswag_accuracy": hellaswag_acc,
                           "train_step": train_step})
 
-                model_checkpoint_manager.save_checkpoint(
+                model_checkpoint_manager.save_checkpoint_to_wandb(
                     model, optimizer, train_step, train_loss, val_loss)
+                model_checkpoint_manager.cleanup_wandb_artifacts(wandb_run)
 
         # Ensure previous CUDA ops are done
         if s.device == "cuda":
@@ -122,13 +123,12 @@ try:
                 f"step {train_step:<3} | train_loss {train_loss:<5.2f} | norm {gradient_norm:<5.2f} | time {elapsed_time * 1000:<4.2f} ms | tok/sec {tokens_per_sec}")
             wandb.log({"train_loss": train_loss, "tok/sec": tokens_per_sec_number,
                       "gradient_norm": gradient_norm, "train_step": train_step})
-            model_checkpoint_manager.save_checkpoint_to_wandb()
-            model_checkpoint_manager.cleanup_wandb_artifacts(wandb_run)
 
 
 except KeyboardInterrupt:
     if s.ddp_master_process:
         print("Stopping Run!")
+        raise
 finally:
     if s.ddp_master_process:
         wandb.finish()

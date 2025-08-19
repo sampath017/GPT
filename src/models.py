@@ -23,7 +23,7 @@ class CausalSelfAttention(nn.Module):
         self.attn = nn.Linear(num_embds, 3 * num_embds)
         # output projection
         self.proj = nn.Linear(num_embds, num_embds)
-        self.c_proj.NANOGPT_SCALE_INIT = 1  # type: ignore
+        self.proj.NANOGPT_SCALE_INIT = 1  # type: ignore
         # regularization
         self.n_head = num_heads
         self.n_embd = num_embds

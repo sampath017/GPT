@@ -202,8 +202,12 @@ class ModelCheckpointManager:
         for artifact in artifacts:
             if artifact.metadata["train_step"] not in top_k_train_steps:
                 try:
+                    # remove all aliases first
+                    for alias in list(artifact.aliases):
+                        artifact.aliases.remove(alias)
+
+                    artifact.save()
                     artifact.delete()
-                    print(f"Deleted wandb artifact: {artifact.name}")
                 except Exception as e:
                     print(f"Failed to delete artifact {artifact.name}: {e}")
 

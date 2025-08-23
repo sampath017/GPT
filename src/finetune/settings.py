@@ -1,56 +1,59 @@
-import os
 from pathlib import Path
 import torch
 import tiktoken
 import torch.distributed as dist
 
-# Seed
-torch.manual_seed(1337)
-if torch.cuda.is_available():
-    torch.cuda.manual_seed(1337)
 
 # Paths
-project_root_path = Path(__file__).parent.parent.parent
-sample10B_data_path = Path("/home/jl_fs/sample10B_data")
-
-logs_path = project_root_path / "logs"
-logs_path.mkdir(exist_ok=True)
-model_checkpoint_path = logs_path / 'model_checkpoint.pth'
+project_root_path = Path(__file__).parent.parent.parent.resolve()
+data_root_path = project_root_path / "data"
+ultrachat_200k_data_path = data_root_path / "ultrachat_200k"
+logs_root_path = project_root_path / "logs"
+logs_root_path.mkdir(exist_ok=True)
+models_root_path = project_root_path / "models"
+models_root_path.mkdir(exist_ok=True)
 
 enc = tiktoken.get_encoding("gpt2")
-torch.set_float32_matmul_precision("high")
 
 if (enc.n_vocab + 47) % 64 == 0:
     vocab_size = enc.n_vocab + 47
 else:
     raise ValueError("Vocabulary size must be divisible by 64.")
 
-
 # DDP
-device = "cpu"
 is_ddp_available = dist.is_available() and not dist.is_initialized()
 try:
-    # Attempt to init process group (works only under torchrun)
     if is_ddp_available:
-        dist.init_process_group(backend='gloo')  # this will fail in notebook
+        assert torch.cuda.is_available(), "we need CUDA for DDP so falling back to CPU"
+        # this will fail in notebook
         ddp_global_rank = dist.get_rank()
         ddp_world_size = dist.get_world_size()
         ddp_local_rank = ddp_global_rank % ddp_world_size
-        ddp_master_process = ddp_global_rank == 0
+        dist.init_process_group(
+            backend='nccl', device_id=ddp_local_rank)  # type: ignore
+        device = f'cuda:{ddp_local_rank}'
+        torch.cuda.set_device(device)
+        ddp_master_process = (ddp_global_rank == 0)
     else:
         raise RuntimeError("Dist not available or already initialized")
-except Exception:
-    # Fall back to CPU / non-DDP mode
+except Exception as e:
+    # vanilla, non-DDP run
+    print(e)
     ddp_global_rank = 0
     ddp_local_rank = 0
     ddp_world_size = 1
     ddp_master_process = True
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    is_ddp_available = False
+
+if device == "cuda":
+    torch.set_float32_matmul_precision("high")
 
 # Config
-wandb_mode = "offline"
+wandb_mode = "online"  # or "offline"
 
 config = {
-    "project_name": "GPT3-small",
+    "project_name": "GPT3_124M",
     "device": device,
     "model": {
         "name": "GPT",
@@ -61,23 +64,28 @@ config = {
         "dropout": 0.2
     },
     "training": {
-        "max_steps": 50,
+        "max_steps": 17167,  # 1 epoch
+        "val_interval": 200,
+        "val_steps": 20,
         "max_grad_norm": 1.0
     },
     "dataset": {
-        "name": "tiny_shakespear",
+        "name": "finewebedu_sample10B",
         "vocab_size": vocab_size,
         "block_size": 1024,
-        "total_batch_size": 2**19,  # In Tokens
-        "batch_size": 4,
+        "total_batch_size": 1024*64,  # In Tokens
+        "batch_size": 32,
         "train_split": 0.7,
         "val_split": 0.3
     },
     "optimizer": {
         "name": "AdamW",
-        "lr": 0.001,
+        "max_lr": 6e-4,
+        "min_lr": 6e-4 * 0.1,
+        "warmup_steps": 715,
         "betas": (0.9, 0.999),
-        "weight_decay": 0.01
+        "weight_decay": 0.1,
+        "eps": 1e-8
     }
 }
 

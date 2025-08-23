@@ -1,26 +1,42 @@
-import os
-import multiprocessing as mp
-import tiktoken
+import sys
 from datasets import load_dataset
-from tqdm import tqdm
+import os
 import numpy as np
-import settings as s
+import multiprocessing as mp
+from pathlib import Path
+from tqdm import tqdm
+sys.path.append(Path(__file__).parent.parent.as_posix())  # nopep8
+import pretrain.settings as s
 
-remote_name = "sample-10BT"
-shard_size = int(1e9)  # 1B tokens per shard, total of 10 shards
+data_root_path = s.data_root_path/"ultrachat_200k"
+data_root_path.mkdir(exist_ok=True, parents=True)
 
-fw = load_dataset("HuggingFaceFW/fineweb-edu",
-                  cache_dir=s.data_root_path.as_posix(), name=remote_name, split="train")
+# setup
+eot = s.enc._special_tokens['<|endoftext|>']  # end of text token
+shard_size = int(50e6)  # 50 million tokens per shard, total of 6 shards
 
-# init the tokenizer
-enc = tiktoken.get_encoding("gpt2")
-eot = enc._special_tokens['<|endoftext|>']  # end of text token
+
+def convo_to_str(example):
+    # flatten one conversation
+    return "\n".join([f"{m['role']}: {m['content']}" for m in example["messages"]])
+
+
+# SFT supervised training split
+ds = load_dataset("HuggingFaceH4/ultrachat_200k",
+                  cache_dir=s.data_root_path.as_posix(), split="train_sft")
+ds = ds.map(lambda x: {"text": convo_to_str(x)})
+
+# setup
+data_root_path = s.data_root_path/"ultrachat_200k"
+data_root_path.mkdir(exist_ok=True)
+eot = s.enc._special_tokens['<|endoftext|>']  # end of text token
+shard_size = int(5e7)  # 50 million tokens per shard, total of 6 shards
 
 
 def tokenize(doc):
     # tokenizes a single document and returns a numpy array of uint16 tokens
     tokens = [eot]  # the special <|endoftext|> token delimits all documents
-    tokens.extend(enc.encode_ordinary(doc["text"]))
+    tokens.extend(s.enc.encode_ordinary(doc["text"]))
     tokens_np = np.array(tokens)
     assert (0 <= tokens_np).all() and (tokens_np < 2 **
                                        16).all(), "token dictionary too large for uint16"
@@ -41,8 +57,7 @@ with mp.Pool(nprocs) as pool:
     all_tokens_np = np.empty((shard_size,), dtype=np.uint16)
     token_count = 0
     progress_bar = None
-    for tokens in pool.imap(tokenize, fw, chunksize=16):
-
+    for tokens in pool.imap(tokenize, ds, chunksize=16):
         # is there enough space in the current shard for the new tokens?
         if token_count + len(tokens) < shard_size:
             # simply append tokens to current shard
@@ -56,8 +71,8 @@ with mp.Pool(nprocs) as pool:
         else:
             # write the current shard and start a new one
             split = "val" if shard_index == 0 else "train"
-            filename = s.data_root_path / \
-                f"edufineweb_{split}_{shard_index:06d}"
+            filename = data_root_path / \
+                f"{split}_{shard_index:06d}"
             # split the document into whatever fits in this shard; the remainder goes to next one
             remainder = shard_size - token_count
             progress_bar.update(remainder)  # type: ignore
@@ -71,7 +86,8 @@ with mp.Pool(nprocs) as pool:
             token_count = len(tokens)-remainder
 
     # write any remaining tokens as the last shard
+    # TODO measure the count of val and train tokens per shard.
     if token_count != 0:
         split = "val" if shard_index == 0 else "train"
-        filename = s.data_root_path / f"edufineweb_{split}_{shard_index:06d}"
+        filename = data_root_path / f"{split}_{shard_index:06d}"
         write_datafile(filename, all_tokens_np[:token_count])

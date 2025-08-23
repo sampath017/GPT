@@ -2,16 +2,13 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python Debugger: torchrun (1 GPU)",
+            "name": "Python Debugger: finetune.main",
             "type": "debugpy",
             "request": "launch",
-            "module": "torch.distributed.run",
-            "args": [
-                "--nproc_per_node=1",  // set to >1 if debugging multi-GPU
-                "src/main.py",         // your training entry script
-            ],
+            "module": "finetune.main", // runs python -m finetune.main
             "console": "integratedTerminal",
-            "justMyCode": false
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}/src" // change working directory
         }
     ]
 }

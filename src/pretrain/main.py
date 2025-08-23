@@ -1,0 +1,151 @@
+import time
+import sys
+import torch.distributed as dist
+import pretrain.settings as s
+from torch.nn.parallel import DistributedDataParallel as DDP
+import wandb
+import torch
+from pretrain.utils import Trainer, ModelSummary, generate, ModelCheckpointManager
+from dataset import FineWebEDUDataLoaderLite
+from pretrain.models import GPT
+from pretrain.hellaswag_eval import evaluate
+from transformers import GPT2LMHeadModel
+from dataset.dataset_classes import ShakespearDatasetLite, ShakespearDataLoaderLite
+
+if s.is_ddp_available:
+    print(s.ddp_global_rank, s.ddp_local_rank, s.ddp_world_size, s.device)
+
+gpt2_xl_hellaswag_acc_path = s.logs_root_path / "gpt2_xl_hellaswag_acc.pt"
+gpt2_hellaswag_acc_path = s.logs_root_path / "gpt2_hellaswag_acc.pt"
+
+# Check if both values are cached
+if gpt2_xl_hellaswag_acc_path.exists() and gpt2_hellaswag_acc_path.exists():
+    gpt2_xl_hellaswag_acc = torch.load(gpt2_xl_hellaswag_acc_path)
+    gpt2_hellaswag_acc = torch.load(gpt2_hellaswag_acc_path)
+else:
+    # gpt2 models
+    gpt2_xl_model = GPT2LMHeadModel.from_pretrained(
+        "gpt2-xl", cache_dir=s.logs_root_path).to(s.device)  # type: ignore
+    gpt2_model = GPT2LMHeadModel.from_pretrained(
+        "gpt2", cache_dir=s.logs_root_path).to(s.device)  # type: ignore
+
+    # Evaluate only if not cached
+    gpt2_xl_hellaswag_acc = evaluate(gpt2_xl_model)
+    gpt2_hellaswag_acc = evaluate(gpt2_model)
+
+    if s.ddp_master_process:
+        torch.save(gpt2_xl_hellaswag_acc, gpt2_xl_hellaswag_acc_path)
+        torch.save(gpt2_hellaswag_acc, gpt2_hellaswag_acc_path)
+
+if s.ddp_master_process:
+    print(f"gpt2_xl_hellaswag_acc: {gpt2_xl_hellaswag_acc}")
+    print(f"gpt2_hellaswag_acc: {gpt2_hellaswag_acc}")
+    wandb_run = wandb.init(project="GPT3-124M", config=s.config,
+                           dir=s.logs_root_path, mode=s.wandb_mode)  # type: ignore
+    wandb.log({"gpt2_xl_hellaswag_acc": gpt2_xl_hellaswag_acc})
+    wandb.log({"gpt2_hellaswag_acc": gpt2_hellaswag_acc})
+
+model = GPT().to(s.device)
+if not s.device == "cpu":
+    model = torch.compile(model)
+if s.is_ddp_available:
+    model = DDP(model, device_ids=[s.ddp_local_rank])
+    raw_model = model.module
+else:
+    raw_model = model
+
+if s.ddp_master_process:
+    ModelSummary.summary(model)
+
+dataset = ShakespearDatasetLite()
+dataloader = ShakespearDataLoaderLite(dataset)
+train_dataloader = ShakespearDataLoaderLite(dataset, split="train")
+val_dataloader = ShakespearDataLoaderLite(dataset, split="val")
+
+optimizer = raw_model.configure_optimizers(
+    weight_decay=s.config["optimizer"]["weight_decay"],
+    lr=s.config["optimizer"]["max_lr"],
+    betas=s.config["optimizer"]["betas"],
+    eps=s.config["optimizer"]["eps"]
+)  # type: ignore
+
+trainer = Trainer(model, optimizer, {
+                  "train_dataloader": train_dataloader, "val_dataloader": val_dataloader})
+model_checkpoint_manager = ModelCheckpointManager()
+
+try:
+    # 🧪 Training Loop with WandB
+    if s.ddp_master_process:
+        print("Started Training!")
+    for train_step in range(s.config["training"]["max_steps"]):
+        # Ensure previous CUDA ops are done
+        if s.device == "cuda":
+            torch.cuda.synchronize()
+        start_time = time.time()
+
+        # Training
+        train_loss, gradient_norm = trainer.train_step(train_step)
+
+        # Validation, Generation, Evaluate on hellaswag and checkpoint
+        if train_step != 0 and train_step % s.config["training"]["val_interval"] == 0:
+            val_loss = 0.0
+            val_steps = s.config["training"]["val_steps"]
+            for _ in range(val_steps):
+                step_val_loss = trainer.val_step()
+                val_loss += step_val_loss
+
+            val_loss = val_loss / val_steps
+
+            generations = generate(model)
+            hellaswag_acc = evaluate(model)
+
+            wandb.log({"generations": generations,
+                       "train_step": train_step})
+            if s.ddp_master_process:
+                print(f"val loss {val_loss:.4f}")
+                wandb.log({"val_loss": val_loss,
+                          "train_step": train_step})
+                wandb.log({"hellaswag_accuracy": hellaswag_acc,
+                          "train_step": train_step})
+
+                model_checkpoint_manager.save_checkpoint_to_wandb(
+                    model, optimizer, train_step, train_loss, val_loss)
+                model_checkpoint_manager.cleanup_wandb_artifacts(wandb_run)
+
+        # Ensure previous CUDA ops are done
+        if s.device == "cuda":
+            torch.cuda.synchronize()
+        end_time = time.time()
+
+        # Logging
+        elapsed_time = end_time - start_time  # in seconds
+        tokens_processed = train_dataloader.B * \
+            train_dataloader.T * trainer.grad_accum_steps * s.ddp_world_size
+        tokens_per_sec_number = tokens_processed / elapsed_time
+        tokens_per_sec = ModelSummary.format_number(tokens_per_sec_number)
+
+        if s.ddp_master_process:
+            print(
+                f"step {train_step:<3} | train_loss {train_loss:<5.2f} | norm {gradient_norm:<5.2f} | time {elapsed_time * 1000:<4.2f} ms | tok/sec {tokens_per_sec}")
+            wandb.log({"train_loss": train_loss, "tok/sec": tokens_per_sec_number,
+                      "gradient_norm": gradient_norm, "train_step": train_step})
+
+except KeyboardInterrupt:
+    if s.ddp_master_process:
+        print("🛑 Training stopped manually (Ctrl+C)")
+except Exception as e:
+    if s.ddp_master_process:
+        print(f"❌ Unhandled error: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+    raise  # re-raise so you don’t swallow the error
+finally:
+    # ✅ Always cleanup
+    if s.ddp_master_process:
+        wandb.finish()
+
+    if dist.is_initialized():
+        dist.destroy_process_group()
+
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()

@@ -7,7 +7,7 @@ azcopy*
 # data
 !data/shakespear.txt
 data/*
-
+data/ultrachat_200k
 # models
 models/
 

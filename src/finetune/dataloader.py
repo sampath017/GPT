@@ -1,17 +1,15 @@
-import tiktoken
-import test_settings as s
-import pickle
 import torch
+from finetune import s
 import numpy as np
 
 
-class TestDataLoaderLite:
-    def __init__(self, split):
+class UltraChat200kDataLoaderLite:
+    def __init__(self, split="train"):
         self.B, self.T = s.config["dataset"]["batch_size"], s.config["dataset"]["block_size"]
         assert split in {'train', 'val'}
 
         shards = sorted(
-            [str(p) for p in s.sample10B_data_path.iterdir() if split in p.name])
+            [path for path in s.ultrachat_200k_data_path.iterdir() if split in path.name])
         self.shards = shards
         assert len(shards) > 0, f"no shards found for split {split}"
         if s.ddp_master_process:
@@ -38,7 +36,7 @@ class TestDataLoaderLite:
         y = (buf[1:]).reshape(B, T)  # targets
 
         # advance the position in the tensor
-        self.current_position += B * T * s.ddp_world_size
+        self.current_position += B * T * s.ddp_world_size  # TEMP
 
         # if loading the next batch would be out of bounds, advance to next shard
         if self.current_position + (B * T * s.ddp_world_size + 1) > len(self.tokens):

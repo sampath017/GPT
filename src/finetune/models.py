@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import test_settings as s
-from test_utils import ModelSummary
+from finetune import s
+from finetune.utils import ModelSummary
 
 vocab_size = s.config["dataset"]["vocab_size"]
 block_size = s.config["dataset"]["block_size"]
@@ -14,6 +14,7 @@ dropout = s.config["model"]["dropout"]
 batch_size = s.config["dataset"]["batch_size"]
 
 
+# Masked attention
 class CausalSelfAttention(nn.Module):
     def __init__(self):
         super().__init__()
@@ -22,6 +23,7 @@ class CausalSelfAttention(nn.Module):
         self.attn = nn.Linear(num_embds, 3 * num_embds)
         # output projection
         self.proj = nn.Linear(num_embds, num_embds)
+        self.proj.NANOGPT_SCALE_INIT = 1  # type: ignore
         # regularization
         self.n_head = num_heads
         self.n_embd = num_embds
@@ -47,35 +49,6 @@ class CausalSelfAttention(nn.Module):
         y = self.proj(y)
         return y
 
-# class CausalSelfAttention(nn.Module):
-#     def __init__(self):
-#         super().__init__()
-#         self.attn = nn.Linear(num_embds, 3 * num_embds)
-#         self.proj = nn.Linear(num_embds, num_embds)
-
-#     def forward(self, embds):
-#         qkv = self.attn(embds)
-#         q, k, v = qkv.split(num_embds, dim=2)
-#         k = k.view(B, T, self.n_head, C //
-#                    self.n_head).transpose(1, 2)  # (B, nh, T, hs)
-#         k = k.view(batch_size, block_size, num_heads,
-#                    head_size).transpose(1, 2)
-#         q = q.view(batch_size, block_size, num_heads,
-#                    head_size).transpose(1, 2)
-#         v = v.view(batch_size, block_size, num_heads,
-#                    head_size).transpose(1, 2)
-
-#         # flash attention
-#         affinities = F.scaled_dot_product_attention(
-#             q, k, v, is_causal=True)
-
-#         # re-assemble all head outputs side by side
-#         affinities = affinities.transpose(1, 2).reshape(
-#             batch_size, block_size, num_embds)
-#         affinities = self.proj(affinities)
-
-#         return affinities
-
 
 class FeedForward(nn.Module):
     def __init__(self):
@@ -95,10 +68,10 @@ class FeedForward(nn.Module):
 class Block(nn.Module):
     def __init__(self):
         super().__init__()
-        self.self_attention = CausalSelfAttention()
-        self.feed_forward = FeedForward()
         self.ln1 = nn.LayerNorm(num_embds)
+        self.self_attention = CausalSelfAttention()
         self.ln2 = nn.LayerNorm(num_embds)
+        self.feed_forward = FeedForward()
 
     def forward(self, embds):
         embds = embds + self.self_attention(self.ln1(embds))
@@ -111,15 +84,18 @@ class GPT(nn.Module):
     def __init__(self):
         super().__init__()
         self.transformer = nn.ModuleDict(dict(
-            token_embedding_table=nn.Embedding(vocab_size, num_embds),
+            token_embedding_table=nn.Embedding(
+                vocab_size, num_embds),  # type: ignore
             position_embedding_table=nn.Embedding(block_size, num_embds),
             blocks=nn.Sequential(*[Block() for _ in range(num_blocks)]),
             ln_f=nn.LayerNorm(num_embds)
         ))
-        self.lm_head = nn.Linear(head_size*num_heads, vocab_size)
+        self.lm_head = nn.Linear(num_embds, vocab_size)
 
         # weight sharing scheme
-        self.transformer.token_embedding_table.weight = self.lm_head.weight
+        self.lm_head.weight = self.transformer.token_embedding_table.weight  # type: ignore
+
+        self.apply(self._init_weights)
 
     def forward(self, x, y=None):
         B, T = x.shape
@@ -142,28 +118,37 @@ class GPT(nn.Module):
 
         return logits, loss
 
-    def configure_optimizers(self, weight_decay, lr, betas):
-        param_dict = {pn: p for pn, p in self.named_parameters()
-                      if p.requires_grad}
-
+    def configure_optimizers(self, weight_decay, lr, betas, eps):
         # create optim groups. Any parameters that is 2D will be weight decayed, otherwise no.
         # i.e. all weight tensors in matmuls + embeddings decay, all biases and layernorms don't.
-        decay_params = [p for pn, p in param_dict.items() if p.dim() >= 2]
-        non_decay_params = [p for pn, p in param_dict.items() if p.dim() < 2]
+        decay_params = [p for p in self.parameters() if p.dim() >= 2 and p.requires_grad]  # nopep8
+        non_decay_params = [p for p in self.parameters() if p.dim() < 2 and p.requires_grad]  # nopep8
+
         optim_groups = [
             {'params': decay_params, 'weight_decay': weight_decay},
             {'params': non_decay_params, 'weight_decay': 0.0}
         ]
-        num_decay_params = sum(p.numel() for p in decay_params)
-        num_non_decay_params = sum(p.numel() for p in non_decay_params)
 
         if s.ddp_master_process:
+            num_decay_params = sum(p.numel() for p in decay_params)
+            num_non_decay_params = sum(p.numel() for p in non_decay_params)
             print(
                 f"num decayed parameter tensors: {len(decay_params)}, with {ModelSummary.format_number(num_decay_params)} parameters")
             print(
                 f"num non-decayed parameter tensors: {len(non_decay_params)}, with {ModelSummary.format_number(num_non_decay_params)} parameters")
 
         optimizer = torch.optim.AdamW(
-            optim_groups, lr=lr, betas=betas, fused=True)
+            optim_groups, lr=lr, betas=betas, eps=eps, fused=True)
 
         return optimizer
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            std = 0.02
+            if hasattr(module, 'NANOGPT_SCALE_INIT'):
+                std *= (2 * num_blocks) ** -0.5
+            torch.nn.init.normal_(module.weight, mean=0.0, std=std)
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)

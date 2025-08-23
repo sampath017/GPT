@@ -1,4 +1,10 @@
 {
     "python.analysis.autoImportCompletions": true,
-    "python-envs.pythonProjects": []
+    "python-envs.pythonProjects": [],
+    "python.autoComplete.extraPaths": [
+        "${workspaceFolder}/src"
+    ],
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/src"
+    ]
 }

@@ -23,6 +23,8 @@ gpt2-xl (1558M)
 - this script: 10042 acc: 0.3842 acc_norm: 0.4893 (completion style)
 
 The validation set of HellaSwag has a total of 10,042 examples.
+
+# STUDY
 """
 
 import json
@@ -30,7 +32,7 @@ import requests
 from tqdm import tqdm
 import torch
 from torch.nn import functional as F
-import settings as s
+import pretrain.settings as s
 import torch.distributed as dist
 from transformers import GPT2LMHeadModel
 

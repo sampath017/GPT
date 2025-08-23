@@ -90,11 +90,10 @@ class GPT(nn.Module):
             blocks=nn.Sequential(*[Block() for _ in range(num_blocks)]),
             ln_f=nn.LayerNorm(num_embds)
         ))
-        self.lm_head = nn.Linear(head_size*num_heads, vocab_size)
+        self.lm_head = nn.Linear(num_embds, vocab_size)
 
         # weight sharing scheme
-        # self.lm_head.weight = self.transformer.token_embedding_table.weight
-        self.transformer.token_embedding_table.weight = self.lm_head.weight  # type: ignore
+        self.lm_head.weight = self.transformer.token_embedding_table.weight  # type: ignore
 
         self.apply(self._init_weights)
 

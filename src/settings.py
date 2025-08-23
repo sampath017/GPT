@@ -6,20 +6,20 @@ import torch.distributed as dist
 # Paths
 project_root_path = Path(__file__).parent.parent.resolve()
 data_root_path = project_root_path / "data"
-sample10B_data_path = data_root_path / "sample10B"
+# sample10B_data_path = data_root_path / "sample10B"
 # sample10B_data_path = Path("/home/jl_fs/sample10B_data")
 # sample10B_data_path = Path(r"C:\Users\sampath\Dev\Data\sample10B_data")
 
 # shakespear_data_path = data_root_path / "shakespear.txt"
 # tokens_path = data_root_path / "tokens.pt"
 
+ultrachat_200k_data_path = data_root_path / "ultrachat_200k"
 logs_root_path = project_root_path / "logs"
 logs_root_path.mkdir(exist_ok=True)
 models_root_path = project_root_path / "models"
 models_root_path.mkdir(exist_ok=True)
 
 enc = tiktoken.get_encoding("gpt2")
-torch.set_float32_matmul_precision("high")
 
 if (enc.n_vocab + 47) % 64 == 0:
     vocab_size = enc.n_vocab + 47
@@ -48,9 +48,13 @@ except Exception as e:
     ddp_world_size = 1
     ddp_master_process = True
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    is_ddp_available = False
+
+if device == "cuda":
+    torch.set_float32_matmul_precision("high")
 
 # Config
-wandb_mode = "online"  # or "offline"
+wandb_mode = "offline"  # or "offline"
 
 config = {
     "project_name": "GPT3-small",

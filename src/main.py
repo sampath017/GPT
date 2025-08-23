@@ -6,13 +6,14 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 import wandb
 import torch
 from utils import Trainer, ModelSummary, generate, ModelCheckpointManager
-from dataset import DataLoaderLite
+from dataset import FineWebEDUDataLoaderLite
 from models import GPT
 from hellaswag import evaluate
 from transformers import GPT2LMHeadModel
+from dataset_classes import ShakespearDatasetLite, ShakespearDataLoaderLite
 
-# if ddp_master_process:
-print(s.ddp_global_rank, s.ddp_local_rank, s.ddp_world_size, s.device)
+if s.is_ddp_available:
+    print(s.ddp_global_rank, s.ddp_local_rank, s.ddp_world_size, s.device)
 
 gpt2_xl_hellaswag_acc_path = s.logs_root_path / "gpt2_xl_hellaswag_acc.pt"
 gpt2_hellaswag_acc_path = s.logs_root_path / "gpt2_hellaswag_acc.pt"
@@ -45,16 +46,21 @@ if s.ddp_master_process:
     wandb.log({"gpt2_hellaswag_acc": gpt2_hellaswag_acc})
 
 model = GPT().to(s.device)
-model = torch.compile(model)
+if not s.device == "cpu":
+    model = torch.compile(model)
 if s.is_ddp_available:
     model = DDP(model, device_ids=[s.ddp_local_rank])
-    raw_model = model.module if s.is_ddp_available else model
+    raw_model = model.module
+else:
+    raw_model = model
 
 if s.ddp_master_process:
     ModelSummary.summary(model)
 
-train_dataloader = DataLoaderLite(split="train")
-val_dataloader = DataLoaderLite(split="val")
+dataset = ShakespearDatasetLite()
+dataloader = ShakespearDataLoaderLite(dataset)
+train_dataloader = ShakespearDataLoaderLite(dataset, split="train")
+val_dataloader = ShakespearDataLoaderLite(dataset, split="val")
 
 optimizer = raw_model.configure_optimizers(
     weight_decay=s.config["optimizer"]["weight_decay"],
@@ -124,17 +130,22 @@ try:
             wandb.log({"train_loss": train_loss, "tok/sec": tokens_per_sec_number,
                       "gradient_norm": gradient_norm, "train_step": train_step})
 
-
 except KeyboardInterrupt:
     if s.ddp_master_process:
-        print("Stopping Run!")
-        raise
+        print("🛑 Training stopped manually (Ctrl+C)")
+except Exception as e:
+    if s.ddp_master_process:
+        print(f"❌ Unhandled error: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+    raise  # re-raise so you don’t swallow the error
 finally:
+    # ✅ Always cleanup
     if s.ddp_master_process:
         wandb.finish()
 
     if dist.is_initialized():
         dist.destroy_process_group()
 
-    torch.cuda.empty_cache()
-    sys.exit(0)
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()

@@ -211,14 +211,28 @@ class ModelCheckpointManager:
                 except Exception as e:
                     print(f"Failed to delete artifact {artifact.name}: {e}")
 
-    def load_checkpoint(self, path, model, optimizer=None):
+    @staticmethod
+    def load_checkpoint(path, model, optimizer=None):
         """Load checkpoint into model and optimizer."""
         checkpoint = torch.load(path, map_location=s.device)
+        state_dict = checkpoint["model_state_dict"]
 
-        model.load_state_dict(checkpoint["model_state_dict"])
+        # 🔑 Fix DDP/FSDP prefixes
+        new_state_dict = {}
+        for k, v in state_dict.items():
+            # remove "module._orig_mod." or "module." prefix if present
+            if k.startswith("module._orig_mod."):
+                new_state_dict[k.replace("module._orig_mod.", "", 1)] = v
+            elif k.startswith("module."):
+                new_state_dict[k.replace("module.", "", 1)] = v
+            else:
+                new_state_dict[k] = v
+
+        # now load
+        model.load_state_dict(new_state_dict)
         model = model.to(s.device)
 
-        if optimizer:
+        if optimizer and "optimizer_state_dict" in checkpoint:
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
         return model, optimizer
@@ -260,7 +274,10 @@ def generate(model):
     for i in range(num_return_sequences):
         tokens = xgen[i, :max_length].tolist()
         decoded = s.enc.decode(tokens)
-        generation = f"rank {s.ddp_global_rank} sample {i}: {decoded}"
+        if s.ddp_world_size == 1:
+            generation = f"sample {i}: {decoded}"
+        else:
+            generation = f"rank {s.ddp_global_rank} sample {i}: {decoded}"
         generations.append(generation)
         print(generation)
 

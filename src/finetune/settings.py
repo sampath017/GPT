@@ -65,7 +65,7 @@ config = {
     },
     "training": {
         "max_steps": 17167,  # 1 epoch
-        "val_interval": 200,
+        "val_interval": 5, # TEMP
         "val_steps": 20,
         "max_grad_norm": 1.0
     },
@@ -74,7 +74,7 @@ config = {
         "vocab_size": vocab_size,
         "block_size": 1024,
         "total_batch_size": 1024*64,  # In Tokens
-        "batch_size": 32,
+        "batch_size": 8,
         "train_split": 0.7,
         "val_split": 0.3
     },

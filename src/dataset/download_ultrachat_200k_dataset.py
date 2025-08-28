@@ -6,7 +6,7 @@ import multiprocessing as mp
 from pathlib import Path
 from tqdm import tqdm
 sys.path.append(Path(__file__).parent.parent.as_posix())  # nopep8
-import pretrain.settings as s
+import finetune.settings as s
 
 data_root_path = s.data_root_path/"ultrachat_200k"
 data_root_path.mkdir(exist_ok=True, parents=True)

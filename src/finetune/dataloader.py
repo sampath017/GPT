@@ -5,6 +5,7 @@ import numpy as np
 
 class UltraChat200kDataLoaderLite:
     def __init__(self, split="train"):
+        split = split.lower()
         self.B, self.T = s.config["dataset"]["batch_size"], s.config["dataset"]["block_size"]
         assert split in {'train', 'val'}
 
@@ -19,6 +20,7 @@ class UltraChat200kDataLoaderLite:
 
     def load_tokens(self, filename):
         npt = np.load(filename)
+        np.random.shuffle(npt)
         tokens = torch.tensor(npt, dtype=torch.long)
 
         return tokens

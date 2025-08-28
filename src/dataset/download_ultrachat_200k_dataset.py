@@ -6,7 +6,7 @@ import multiprocessing as mp
 from pathlib import Path
 from tqdm import tqdm
 sys.path.append(Path(__file__).parent.parent.as_posix())  # nopep8
-import pretrain.settings as s
+import finetune.settings as s
 
 data_root_path = s.data_root_path/"ultrachat_200k"
 data_root_path.mkdir(exist_ok=True, parents=True)
@@ -72,7 +72,7 @@ with mp.Pool(nprocs) as pool:
             # write the current shard and start a new one
             split = "val" if shard_index == 0 else "train"
             filename = data_root_path / \
-                f"{split}_{shard_index:06d}"
+                f"{split}_{shard_index:02d}"
             # split the document into whatever fits in this shard; the remainder goes to next one
             remainder = shard_size - token_count
             progress_bar.update(remainder)  # type: ignore
@@ -89,5 +89,5 @@ with mp.Pool(nprocs) as pool:
     # TODO measure the count of val and train tokens per shard.
     if token_count != 0:
         split = "val" if shard_index == 0 else "train"
-        filename = data_root_path / f"{split}_{shard_index:06d}"
+        filename = data_root_path / f"{split}_{shard_index:02d}"
         write_datafile(filename, all_tokens_np[:token_count])

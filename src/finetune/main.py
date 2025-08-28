@@ -7,7 +7,7 @@ import torch
 from finetune import s
 from finetune.utils import Trainer, ModelSummary, instruct_generate, ModelCheckpointManager
 from finetune.models import GPT
-from finetune import LoRA
+from finetune.LoRA import LoRALinear
 from finetune.dataloader import UltraChat200kDataLoaderLite
 
 if s.is_ddp_available:
@@ -16,14 +16,12 @@ if s.is_ddp_available:
 train_dataloader = UltraChat200kDataLoaderLite(split="train")
 val_dataloader = UltraChat200kDataLoaderLite(split="val")
 
-if s.ddp_master_process:
-    wandb_run = wandb.init(project="GPT3_124M_instruct", config=s.config,
-                           dir=s.logs_root_path, mode=s.wandb_mode, reinit="create_new")  # type: ignore
 
 # apply LoRA
 model = ModelCheckpointManager.get_model_from_wandb(model=GPT())
-model = LoRA.apply_lora(model, r=16, alpha=32, dropout=0.05,
-                        target_modules=("attn", "proj"))
+model = LoRALinear.apply_lora(model, r=16, alpha=32, dropout=0.05,
+                              target_modules=("attn", "proj"))
+
 if s.ddp_master_process:
     # check trainable params
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -33,8 +31,7 @@ if s.ddp_master_process:
 
 
 # optimizer only sees LoRA weights
-optimizer = torch.optim.AdamW(
-    filter(lambda p: p.requires_grad, model.parameters()), lr=1e-4)
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
 
 if not s.device == "cpu":
     model = torch.compile(model)
@@ -51,7 +48,10 @@ model_checkpoint_manager = ModelCheckpointManager()
 try:
     # 🧪 Training Loop with WandB
     if s.ddp_master_process:
+        wandb_run = wandb.init(project="GPT3_124M_INSTRUCT", config=s.config,
+                               dir=s.logs_root_path, mode=s.wandb_mode)  # type: ignore
         print("Started Training!")
+
     for train_step in range(s.config["training"]["max_steps"]):
         # Ensure previous CUDA ops are done
         if s.device == "cuda":
@@ -77,11 +77,12 @@ try:
                        "train_step": train_step})
             if s.ddp_master_process:
                 print(f"val loss {val_loss:.4f}")
+                print(generations)
                 wandb.log({"val_loss": val_loss,
                           "train_step": train_step})
 
-                model_checkpoint_manager.save_checkpoint_to_wandb(
-                    model, optimizer, train_step, train_loss, val_loss, wandb_run)
+                # model_checkpoint_manager.save_checkpoint_to_wandb(
+                #     model, optimizer, train_step, train_loss, val_loss, wandb_run)
 
         # Ensure previous CUDA ops are done
         if s.device == "cuda":

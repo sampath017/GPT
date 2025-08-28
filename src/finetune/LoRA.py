@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from finetune import s
 
 
 class LoRALinear(nn.Module):
@@ -34,7 +35,6 @@ class LoRALinear(nn.Module):
         return result
 
     # ---- Main utility like get_peft_model ----
-
     @staticmethod
     def apply_lora(model, r=8, alpha=16, dropout=0.05, target_modules=("attn", "proj")):
         """
@@ -63,4 +63,4 @@ class LoRALinear(nn.Module):
             if "lora_A" not in name and "lora_B" not in name:
                 param.requires_grad = False
 
-        return model
+        return model.to(s.device)

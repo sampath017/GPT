@@ -1,4 +1,5 @@
 from pathlib import Path
+from wandb import Api
 import wandb
 import torch
 import torch.nn.functional as F
@@ -219,21 +220,27 @@ class ModelCheckpointManager:
                     print(f"Failed to delete artifact {artifact.name}: {e}")
 
     @staticmethod
-    def load_checkpoint(path, model, optimizer=None):
+    def load_checkpoint(path, model, optimizer=None, model_type="pretrained"):
         """Load checkpoint into model and optimizer."""
         checkpoint = torch.load(path, map_location=s.device)
         state_dict = checkpoint["model_state_dict"]
 
-        # 🔑 Fix DDP/FSDP prefixes
-        new_state_dict = {}
-        for k, v in state_dict.items():
-            # remove "module._orig_mod." or "module." prefix if present
-            if k.startswith("module._orig_mod."):
-                new_state_dict[k.replace("module._orig_mod.", "", 1)] = v
-            elif k.startswith("module."):
-                new_state_dict[k.replace("module.", "", 1)] = v
-            else:
-                new_state_dict[k] = v
+        if model_type == "pretrained":
+            # 🔑 Fix DDP/FSDP prefixes
+            new_state_dict = {}
+            for k, v in state_dict.items():
+                # remove "module._orig_mod." or "module." prefix if present
+                if k.startswith("module._orig_mod."):
+                    new_state_dict[k.replace("module._orig_mod.", "", 1)] = v
+                elif k.startswith("module."):
+                    new_state_dict[k.replace("module.", "", 1)] = v
+                else:
+                    new_state_dict[k] = v
+        elif model_type == "finetuned":
+            # 🔑 Fix DDP/FSDP prefixes
+            prefix = "_orig_mod."
+            new_state_dict = {k[len(prefix):] if k.startswith(prefix) else k: v
+                              for k, v in state_dict.items()}
 
         # now load
         model.load_state_dict(new_state_dict)
@@ -245,23 +252,23 @@ class ModelCheckpointManager:
         return model, optimizer
 
     @staticmethod
-    def get_model_from_wandb(model):
+    def get_model_from_wandb(model, wandb_path='sampath017/GPT3-124M/model_checkpoint_train_step_17000_val_loss_3.08:v0', cache_dir=s.models_root_path/"pretrained_models", model_type="pretrained"):
         if s.ddp_master_process:  # Only master downloads
-            run = wandb.init(dir=s.logs_root_path)
-            artifact = run.use_artifact(
-                'sampath017/GPT3-124M/model_checkpoint_train_step_17000_val_loss_3.08:v0',
+            api = Api()
+            artifact = api.artifact(
+                wandb_path,
                 type='model'
             )
-            artifact.download(s.models_root_path)
+            artifact.download(cache_dir)
 
         # 🔑 Wait for rank 0 to finish downloading
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
 
-        checkpoint_files = list(Path(s.models_root_path).glob("*.pt"))
+        checkpoint_files = list(Path(cache_dir).glob("*.pt"))
         if not checkpoint_files:
             raise FileNotFoundError(
-                f"No .pt files found in {s.models_root_path}"
+                f"No .pt files found in {cache_dir}"
             )
 
         # Pick most recent checkpoint
@@ -272,62 +279,16 @@ class ModelCheckpointManager:
 
         # Load checkpoint on each rank
         model, _ = ModelCheckpointManager.load_checkpoint(
-            checkpoint_path, model
+            path=checkpoint_path, model=model, model_type=model_type
         )
 
         return model
 
 
-def pretrain_generate(model):
-    model.eval()
-    num_return_sequences = 2
-    max_length = 32
-    tokens = s.enc.encode("Hello, I'm a language model,")
-    tokens = torch.tensor(tokens, dtype=torch.long)
-    tokens = tokens.unsqueeze(0).repeat(num_return_sequences, 1)
-    xgen = tokens.to(s.device)
-    sample_rng = torch.Generator(device=s.device)
-    sample_rng.manual_seed(42 + s.ddp_global_rank)
-    while xgen.size(1) < max_length:
-        # forward the model to get the logits
-        with torch.no_grad():
-            with torch.autocast(device_type=s.device, dtype=torch.bfloat16):
-                logits, loss = model(xgen)  # (B, T, vocab_size)
-            # take the logits at the last position
-            logits = logits[:, -1, :]  # (B, vocab_size)
-            # get the probabilities
-            probs = F.softmax(logits, dim=-1)
-            # do top-k sampling of 50 (huggingface pipeline default)
-            # topk_probs here becomes (5, 50), topk_indices is (5, 50)
-            topk_probs, topk_indices = torch.topk(probs, 50, dim=-1)
-            # select a token from the top-k probabilities
-            # note: multinomial does not demand the input to sum to 1
-            ix = torch.multinomial(
-                topk_probs, 1, generator=sample_rng)  # (B, 1)
-            # gather the corresponding indices
-            xcol = torch.gather(topk_indices, -1, ix)  # (B, 1)
-            # append to the sequence
-            xgen = torch.cat((xgen, xcol), dim=1)
-
-    # print the generated text
-    generations = []
-    for i in range(num_return_sequences):
-        tokens = xgen[i, :max_length].tolist()
-        decoded = s.enc.decode(tokens)
-        if s.ddp_world_size == 1:
-            generation = f"sample {i}: {decoded}"
-        else:
-            generation = f"rank {s.ddp_global_rank} sample {i}: {decoded}"
-        generations.append(generation)
-        print(generation)
-
-    return generations
-
-
-def instruct_generate(model, max_length=256, temperature=0.7, top_p=0.9):
+def instruct_generate(model, max_length=256):
     model.eval()
     # always prepend <EOD> for fresh conversation
-    prompt = "<EOD>User: Tell me a joke\nAssistant:"
+    prompt = "User: Tell me a joke\nAssistant:"
 
     tokens = s.enc.encode(prompt)
     tokens = torch.tensor(tokens, dtype=torch.long).unsqueeze(0).to(s.device)
@@ -338,23 +299,22 @@ def instruct_generate(model, max_length=256, temperature=0.7, top_p=0.9):
             with torch.autocast(device_type=s.device, dtype=torch.bfloat16):
                 logits, _ = model(xgen)
 
-        logits = logits[:, -1, :] / temperature
+        logits = logits[:, -1, :]  # (B, vocab_size)
+        # get the probabilities
         probs = F.softmax(logits, dim=-1)
-
-        # nucleus sampling
-        sorted_probs, sorted_indices = torch.sort(probs, descending=True)
-        cumulative_probs = torch.cumsum(sorted_probs, dim=-1)
-        cutoff = cumulative_probs > top_p
-        sorted_probs[cutoff] = 0
-        sorted_probs = sorted_probs / sorted_probs.sum(dim=-1, keepdim=True)
-
-        next_token = torch.multinomial(sorted_probs, 1)
-        next_token = torch.gather(sorted_indices, -1, next_token)
-
-        xgen = torch.cat([xgen, next_token], dim=1)
+        # do top-k sampling of 50 (huggingface pipeline default)
+        # topk_probs here becomes (5, 50), topk_indices is (5, 50)
+        topk_probs, topk_indices = torch.topk(probs, 50, dim=-1)
+        # select a token from the top-k probabilities
+        # note: multinomial does not demand the input to sum to 1
+        ix = torch.multinomial(topk_probs, 1)  # (B, 1)
+        # gather the corresponding indices
+        xcol = torch.gather(topk_indices, -1, ix)  # (B, 1)
+        # append to the sequence
+        xgen = torch.cat((xgen, xcol), dim=1)
 
         # optional EOS stop
-        if next_token.item() == s.enc._special_tokens['<|endoftext|>']:
+        if xcol.item() == s.enc._special_tokens['<|endoftext|>']:
             break
 
     decoded = s.enc.decode(xgen[0].tolist())

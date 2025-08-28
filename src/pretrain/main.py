@@ -40,7 +40,7 @@ else:
 if s.ddp_master_process:
     print(f"gpt2_xl_hellaswag_acc: {gpt2_xl_hellaswag_acc}")
     print(f"gpt2_hellaswag_acc: {gpt2_hellaswag_acc}")
-    wandb_run = wandb.init(project="GPT3-124M", config=s.config,
+    wandb_run = wandb.init(project="GPT3_124M", config=s.config,
                            dir=s.logs_root_path, mode=s.wandb_mode)  # type: ignore
     wandb.log({"gpt2_xl_hellaswag_acc": gpt2_xl_hellaswag_acc})
     wandb.log({"gpt2_hellaswag_acc": gpt2_hellaswag_acc})

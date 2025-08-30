@@ -4,7 +4,8 @@ import wandb
 import torch
 import torch.nn.functional as F
 import torch.distributed as dist
-from finetune import s
+from finetune import LoRA
+import finetune.settings as s
 import math
 
 
@@ -160,16 +161,19 @@ class ModelCheckpointManager:
         self.top_k = top_k
         self.best_models = []  # list of (val_loss, path)
 
-    def save_checkpoint_to_wandb(self, model, optimizer, train_step, train_loss, val_loss, wandb_run):
+    def save_checkpoint_to_wandb(self, model, optimizer, train_step, train_loss, val_loss, wandb_run, model_type="pretrained"):
         self.run = wandb_run
+        assert model_type in ["pretrained", "finetuned"]
         checkpoint_path = s.models_root_path / \
-            f"model_checkpoint_train_step_{train_step}_val_loss_{val_loss:.2f}.pt"
+            f"{model_type}/model_checkpoint_train_step_{train_step}_val_loss_{val_loss:.2f}.pt"
 
+        model_state_dict = model.state_dict(
+        ) if model_type == "pretrained" else LoRA.get_state_dict()  # type: ignore # nopep8
         checkpoint = {
             "train_step": train_step,
             "train_loss": train_loss,
             "val_loss": val_loss,
-            "model_state_dict": model.state_dict(),
+            "model_state_dict": model_state_dict,
             "optimizer_state_dict": optimizer.state_dict()
         }
 
@@ -189,9 +193,9 @@ class ModelCheckpointManager:
         self.best_models = self.best_models[:self.top_k]
 
         # Delete local files not in top-K
-        current_paths = [p for _, p in self.best_models]
+        current_paths = [p for _, _, p in self.best_models]
         for f in s.models_root_path.iterdir():
-            if f not in current_paths:
+            if f.is_file() and (f not in current_paths):
                 try:
                     f.unlink()
                 except FileNotFoundError:
@@ -220,7 +224,7 @@ class ModelCheckpointManager:
                     print(f"Failed to delete artifact {artifact.name}: {e}")
 
     @staticmethod
-    def load_checkpoint(path, model, optimizer=None, model_type="pretrained"):
+    def load_checkpoint_from_local(path, model, optimizer=None, model_type="pretrained"):
         """Load checkpoint into model and optimizer."""
         checkpoint = torch.load(path, map_location=s.device)
         state_dict = checkpoint["model_state_dict"]
@@ -237,10 +241,7 @@ class ModelCheckpointManager:
                 else:
                     new_state_dict[k] = v
         elif model_type == "finetuned":
-            # 🔑 Fix DDP/FSDP prefixes
-            prefix = "_orig_mod."
-            new_state_dict = {k[len(prefix):] if k.startswith(prefix) else k: v
-                              for k, v in state_dict.items()}
+            new_state_dict = state_dict
 
         # now load
         model.load_state_dict(new_state_dict)
@@ -252,7 +253,7 @@ class ModelCheckpointManager:
         return model, optimizer
 
     @staticmethod
-    def get_model_from_wandb(model, wandb_path='sampath017/GPT3-124M/model_checkpoint_train_step_17000_val_loss_3.08:v0', cache_dir=s.models_root_path/"pretrained_models", model_type="pretrained"):
+    def get_checkpoint_from_wandb(model, wandb_path='sampath017/GPT3_124M/model_checkpoint_train_step_17000_val_loss_3.08:v0', cache_dir=s.models_root_path/"pretrained_models", model_type="pretrained"):
         if s.ddp_master_process:  # Only master downloads
             api = Api()
             artifact = api.artifact(
@@ -278,17 +279,17 @@ class ModelCheckpointManager:
             print(f"Using checkpoint: {checkpoint_path}")
 
         # Load checkpoint on each rank
-        model, _ = ModelCheckpointManager.load_checkpoint(
+        model, optimizer = ModelCheckpointManager.load_checkpoint_from_local(
             path=checkpoint_path, model=model, model_type=model_type
         )
 
-        return model
+        return model, optimizer
 
 
-def instruct_generate(model, max_length=256):
+def instruct_generate(model, prompt, max_length=256):
     model.eval()
     # always prepend <EOD> for fresh conversation
-    prompt = "User: Tell me a joke\nAssistant:"
+    prompt = f"User: {prompt}\nAssistant:"
 
     tokens = s.enc.encode(prompt)
     tokens = torch.tensor(tokens, dtype=torch.long).unsqueeze(0).to(s.device)

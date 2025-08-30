@@ -1,8 +1,10 @@
 import torch
-from finetune import s
+import finetune.settings as s
 import numpy as np
 
 
+# TODO
+# make the dataset as https://github.com/hmzakhalid/codegpt2/blob/main/code_gpt.ipynb
 class UltraChat200kDataLoaderLite:
     def __init__(self, split="train"):
         split = split.lower()

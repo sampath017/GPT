@@ -26,11 +26,12 @@ try:
     if is_ddp_available:
         assert torch.cuda.is_available(), "we need CUDA for DDP so falling back to CPU"
         # this will fail in notebook
+        # torchrun sets these env vars automatically
+        dist.init_process_group(backend='nccl')
+
         ddp_global_rank = dist.get_rank()
         ddp_world_size = dist.get_world_size()
         ddp_local_rank = ddp_global_rank % ddp_world_size
-        dist.init_process_group(
-            backend='nccl', device_id=ddp_local_rank)  # type: ignore
         device = f'cuda:{ddp_local_rank}'
         torch.cuda.set_device(device)
         ddp_master_process = (ddp_global_rank == 0)
@@ -73,15 +74,15 @@ config = {
         "name": "finewebedu_sample10B",
         "vocab_size": vocab_size,
         "block_size": 1024,
-        "total_batch_size": 1024*64,  # In Tokens
+        "total_batch_size": 1024*32,  # In Tokens
         "batch_size": 8,
         "train_split": 0.7,
         "val_split": 0.3
     },
     "optimizer": {
         "name": "AdamW",
-        "max_lr": 6e-4,
-        "min_lr": 6e-4 * 0.1,
+        "max_lr": 1e-3,
+        "min_lr": 1e-3 * 0.5,
         "warmup_steps": 715,
         "betas": (0.9, 0.999),
         "weight_decay": 0.1,

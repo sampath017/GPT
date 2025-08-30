@@ -242,7 +242,7 @@ class ModelCheckpointManager:
     def get_model_from_wandb(model):
         run = wandb.init(dir=s.logs_root_path)
         # artifact = run.use_artifact(
-        #     'sampath017/GPT3-124M/model_checkpoint_train_step_17000_val_loss_3.08:v0', type='model')
+        #     'sampath017/GPT3_124M/model_checkpoint_train_step_17000_val_loss_3.08:v0', type='model')
         # artifact_dir = artifact.download(s.models_root_path)
         artifact_dir = s.models_root_path
         checkpoint_files = list(Path(artifact_dir).glob("*.pt"))

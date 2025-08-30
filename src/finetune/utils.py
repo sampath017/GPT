@@ -4,7 +4,7 @@ import wandb
 import torch
 import torch.nn.functional as F
 import torch.distributed as dist
-from finetune import s
+import finetune.settings as s
 import math
 
 
@@ -189,9 +189,9 @@ class ModelCheckpointManager:
         self.best_models = self.best_models[:self.top_k]
 
         # Delete local files not in top-K
-        current_paths = [p for _, p in self.best_models]
+        current_paths = [p for _, _, p in self.best_models]
         for f in s.models_root_path.iterdir():
-            if f not in current_paths:
+            if f.is_file() and f not in current_paths:
                 try:
                     f.unlink()
                 except FileNotFoundError:
@@ -252,7 +252,7 @@ class ModelCheckpointManager:
         return model, optimizer
 
     @staticmethod
-    def get_model_from_wandb(model, wandb_path='sampath017/GPT3-124M/model_checkpoint_train_step_17000_val_loss_3.08:v0', cache_dir=s.models_root_path/"pretrained_models", model_type="pretrained"):
+    def get_model_from_wandb(model, wandb_path='sampath017/GPT3_124M/model_checkpoint_train_step_17000_val_loss_3.08:v0', cache_dir=s.models_root_path/"pretrained_models", model_type="pretrained"):
         if s.ddp_master_process:  # Only master downloads
             api = Api()
             artifact = api.artifact(

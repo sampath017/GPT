@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from finetune import s
+import finetune.settings as s
 from finetune.utils import ModelSummary
 
 vocab_size = s.config["dataset"]["vocab_size"]

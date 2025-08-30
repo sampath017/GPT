@@ -4,7 +4,7 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 import wandb
 import torch
-from finetune import s
+import finetune.settings as s
 from finetune.utils import Trainer, ModelSummary, instruct_generate, ModelCheckpointManager
 from finetune.models import GPT
 from finetune.LoRA import LoRALinear
@@ -15,7 +15,6 @@ if s.is_ddp_available:
 
 train_dataloader = UltraChat200kDataLoaderLite(split="train")
 val_dataloader = UltraChat200kDataLoaderLite(split="val")
-
 
 # apply LoRA
 model = ModelCheckpointManager.get_model_from_wandb(model=GPT())
@@ -31,12 +30,13 @@ if s.ddp_master_process:
 
 
 # optimizer only sees LoRA weights
-optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
+optimizer = optim.AdamW(model.parameters(), lr=1e-4)
 
 if not s.device == "cpu":
     model = torch.compile(model)
 if s.is_ddp_available:
-    model = DDP(model, device_ids=[s.ddp_local_rank])
+    model = DDP(model, device_ids=[s.ddp_local_rank],
+                output_device=s.ddp_local_rank)
     raw_model = model.module
 else:
     raw_model = model
@@ -61,8 +61,8 @@ try:
         # Training
         train_loss, gradient_norm = trainer.train_step(train_step)
 
-        # Validation, Generation, Evaluate on hellaswag and checkpoint
-        if train_step != 0 and train_step % s.config["training"]["val_interval"] == 0:
+        # Validation, Generation and checkpoint
+        if train_step % s.config["training"]["val_interval"] == 0:
             val_loss = 0.0
             val_steps = s.config["training"]["val_steps"]
             for _ in range(val_steps):
@@ -81,8 +81,8 @@ try:
                 wandb.log({"val_loss": val_loss,
                           "train_step": train_step})
 
-                # model_checkpoint_manager.save_checkpoint_to_wandb(
-                #     model, optimizer, train_step, train_loss, val_loss, wandb_run)
+                model_checkpoint_manager.save_checkpoint_to_wandb(
+                    model, optimizer, train_step, train_loss, val_loss, wandb_run)
 
         # Ensure previous CUDA ops are done
         if s.device == "cuda":
@@ -110,6 +110,11 @@ except Exception as e:
         print(f"❌ Unhandled error: {e}", flush=True)
         import traceback
         traceback.print_exc()
+
+        # call barrier to prevent hanging
+    if dist.is_initialized():
+        dist.barrier()
+    raise
 finally:
     # ✅ Always cleanup
     if s.ddp_master_process:

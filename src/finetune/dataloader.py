@@ -1,5 +1,5 @@
 import torch
-from finetune import s
+import finetune.settings as s
 import numpy as np
 
 

@@ -3,7 +3,6 @@
 ## Pre-Training
 uv run torchrun --standalone --nproc-per-node=2 src/main.py
 
-uv run python finetune.main
 
 ## Comment Codes
 TODO: make furture updates

@@ -17,30 +17,3 @@ rm -rf GPT
 git clone https://github.com/sampath017/GPT.git
 cd GPT
 uv sync
-
-
-
-Data Science Research Senior Analyst
-Job No. R00270415 
-https://www.accenture.com/in-en/careers/jobdetails?id=R00270415_en&title=Data+Science+Research+Senior+Analyst&c=car_glb_curateddailycondialogbox_12220771&n=otc_0621
-
-Natural Language Processing (NLP)-AI Platform Engineer
-Job No. ATCI-4157005-S1575297
-https://www.accenture.com/in-en/careers/jobdetails?id=ATCI-4157005-S1575297_en&title=Natural+Language+Processing+%28NLP%29-AI+Platform+Engineer&c=car_glb_curateddailycondialogbox_12220771&n=otc_0621
-
-AI / ML Engineer 
-Job No. ATCI-4822077-S1849385
-https://www.accenture.com/in-en/careers/jobdetails?id=ATCI-4822077-S1849385_en&title=AI+%2F+ML+Engineer&c=car_glb_curateddailycondialogbox_12220771&n=otc_0621
-
-AI / ML Engineer
-Job No. ATCI-5075873-S1877736
-https://www.accenture.com/in-en/careers/jobdetails?id=ATCI-5075873-S1877736_en&title=AI+%2F+ML+Engineer&c=car_glb_curateddailycondialogbox_12220771&n=otc_0621
-
-AI / ML Engineer
-Job No. ATCI-4988847-S1860347
-https://www.accenture.com/in-en/careers/jobdetails?id=ATCI-4988847-S1860347_en&title=AI+%2F+ML+Engineer&c=car_glb_curateddailycondialogbox_12220771&n=otc_0621
-
-AI / ML Engineer
-Job No. ATCI-5047576-S1869472
-https://www.accenture.com/in-en/careers/jobdetails?id=ATCI-5047576-S1869472_en&title=AI+%2F+ML+Engineer&c=car_glb_curateddailycondialogbox_12220771&n=otc_0621
-
